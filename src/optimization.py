@@ -45,8 +45,9 @@ class OptimizationProblem():
         
     def get_gradient_and_loss(self, params_1d):
         self.stitcher.update_variables(params_1d)
-        with tf.GradientTape(watch_accessed_variables = False) as tape:
-            tape.watch(self.variables)
+        # Let the tape automatically watch accessed variables to avoid
+        # problems with different Variable wrappers when calling `watch`.
+        with tf.GradientTape(watch_accessed_variables = True) as tape:
             loss_value = self.loss_train()
         grads = self.stitcher.stitch(tape.gradient(loss_value, self.variables, unconnected_gradients = tf.UnconnectedGradients.ZERO))
         return loss_value, grads
@@ -56,8 +57,8 @@ class OptimizationProblem():
         return loss.numpy(), grad.numpy()
         
     def compute_gradient(self):
-        with tf.GradientTape(watch_accessed_variables = False) as tape:
-            tape.watch(self.variables)
+        # Use automatic watching of variables during gradient computation.
+        with tf.GradientTape(watch_accessed_variables = True) as tape:
             loss_value = self.loss_train()
         return tape.gradient(loss_value, self.variables, unconnected_gradients = tf.UnconnectedGradients.ZERO)
 
@@ -108,7 +109,7 @@ class VariablesStitcher:
         part = [] # partition indices
 
         for i, shape in enumerate(self.shapes):
-            n = np.product(shape)
+            n = np.prod(shape)
             self.idx.append(tf.reshape(tf.range(count, count+n, dtype=tf.int32), shape))
             part.extend([i]*n)
             count += n

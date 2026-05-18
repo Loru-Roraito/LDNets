@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 #%% Import modules
+from pathlib import Path
+
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
@@ -43,7 +45,8 @@ normalization = {
 }
 
 #%% Dataset
-data_set_path = '../data/AP1D'
+repo_root = Path(__file__).resolve().parents[1]
+data_set_path = repo_root / 'data' / 'AP1D'
 
 dataset_train = utils.AP_create_dataset(data_set_path, np.arange(  0, 100))
 dataset_valid = utils.AP_create_dataset(data_set_path, np.arange(100, 200))

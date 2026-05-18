@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 #%% Import modules
+from pathlib import Path
+
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
@@ -49,9 +51,10 @@ normalization = {
 
 #%% Dataset
 
-data_set_1_path = '../data/NS/T20_80samples.npy'
-data_set_2_path = '../data/NS/T20_20samples.npy'
-data_set_3_path = '../data/NS/T40_10samples.npy'
+repo_root = Path(__file__).resolve().parents[1]
+data_set_1_path = repo_root / 'data' / 'NS' / 'T20_80samples.npy'
+data_set_2_path = repo_root / 'data' / 'NS' / 'T20_20samples.npy'
+data_set_3_path = repo_root / 'data' / 'NS' / 'T40_10samples.npy'
 
 dataset_train = utils.NS_create_dataset(data_set_1_path, np.arange(0, 80))
 dataset_valid = utils.NS_create_dataset(data_set_2_path, np.arange(0, 20)) 

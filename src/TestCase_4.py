@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 #%% Import modules
+from zipfile import Path
+
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
@@ -46,7 +48,8 @@ normalization = {
 }
 
 #%% Dataset
-data_set_path = '../data/reentry'
+repo_root = Path(__file__).resolve().parents[1]
+data_set_path = repo_root / 'data' / 'reentry'
 
 dataset_train = utils.reentry_create_dataset(data_set_path,   0, 180)
 dataset_valid = utils.reentry_create_dataset(data_set_path, 180, 200)
