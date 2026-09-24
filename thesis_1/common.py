@@ -10,7 +10,7 @@ start_date = datetime(1987, 1, 5)
 dt = 24
 dt_base = 24
 num_latent_states = 30
-n_points = 50
+n_points = 20
 
 problem = {
     "space": {
@@ -58,14 +58,26 @@ normalization = {
 }
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DATA_PATH = REPO_ROOT / 'thesis_2' / 'data' /'data.npy'
-MODEL_DIR = REPO_ROOT / 'thesis_2' / 'model' / 'trained_model'
-HISTORY_PATH = REPO_ROOT / 'thesis_2' / 'model' / 'training_history.npz'
+DATA_PATH = REPO_ROOT / 'thesis' / 'data' /'data.npy'
+MODEL_DIR = REPO_ROOT / 'thesis' / 'model' / 'trained_model'
+HISTORY_PATH = REPO_ROOT / 'thesis' / 'model' / 'training_history.npz'
 
 def load_datasets():
-    dataset_train = utils.MY_create_dataset(DATA_PATH, np.arange(0, 120))
-    dataset_valid = utils.MY_create_dataset(DATA_PATH, np.arange(120, 200))
-    dataset_tests = utils.MY_create_dataset(DATA_PATH, np.arange(200, 240))
+    a = 0
+    b = 120
+    x = 100
+    array = np.sort(np.random.choice(np.arange(a, b), size=x, replace=False))
+    remaining_1 = np.setdiff1d(np.arange(a, b), array)
+    dataset_train = utils.MY_create_dataset(DATA_PATH, array)
+    
+    a = 120
+    b = 200
+    x = 60
+    array = np.sort(np.random.choice(np.arange(a, b), size=x, replace=False))
+    dataset_valid = utils.MY_create_dataset(DATA_PATH, array)
+    remaining_2 = np.setdiff1d(np.arange(a, b), array)
+
+    dataset_tests = utils.MY_create_dataset(DATA_PATH, np.concatenate([remaining_1, remaining_2, np.arange(200, 240)]))
 
     utils.process_dataset(dataset_train, problem, normalization)
     utils.process_dataset(dataset_valid, problem, normalization)

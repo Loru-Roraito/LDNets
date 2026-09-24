@@ -130,13 +130,13 @@ def split_signals(hs, ts, dirs, wave_dates, tides, tide_dates, dt):
             while subtime < 24:
                 if i < len(wave_dates) and wave_dates[i] == time:
                     if not np.isnan(hs[i]):
-                        h += hs[i]
+                        h += hs[i] ** 2
                     else:
                         h_quality -= 1
                         if current_time > 0:
-                            h += signal[-1][0]
+                            h += signal[-1][0] ** 2
                         elif time > 0 and subtime == 0:
-                            h += signals[-1][-1][0]
+                            h += signals[-1][-1][0] ** 2
                     if not np.isnan(ts[i]):
                         t += ts[i]
                     else:
@@ -159,11 +159,11 @@ def split_signals(hs, ts, dirs, wave_dates, tides, tide_dates, dt):
                     t_quality -= 1
                     dir_quality -= 1
                     if current_time > 0:
-                        h += signal[-1][0]
+                        h += signal[-1][0] ** 2
                         t += signal[-1][1]
                         dir += signal[-1][2]
                     elif time > 0 and subtime == 0:
-                        h += signals[-1][-1][0]
+                        h += signals[-1][-1][0] ** 2
                         t += signals[-1][-1][1]
                         dir += signals[-1][-1][2]
                 if j < len(tide_dates) and tide_dates[j] == time:
@@ -237,12 +237,16 @@ def split_signals(hs, ts, dirs, wave_dates, tides, tide_dates, dt):
     
     return signals, h_qualities, t_qualities, dir_qualities, tide_qualities
 
-output, a, sample_dates = split_values(values, coast_dates, dt)    
+output, a, sample_dates = split_values(values, coast_dates, dt)  
+print(tides)  
 signals, b, c, d, e = split_signals(hs, ts, dirs, wave_dates, tides, tide_dates, dt)
 
 scores = []
 for i in range(len(output)):
-    scores.append((24 * a[i] + 2 * b[i] + 2 * c[i] + 2 * d[i] + e[i]) / (24*dt*5))
+    if a[i] <= 14:
+        scores.append(0)
+    else:
+        scores.append((24 * a[i] + 2 * b[i] + 2 * c[i] + 2 * d[i] + e[i]) / (24*dt*5))
 
 sample_ids = np.arange(len(output))
 quality = np.column_stack([a, b, c, d, e])

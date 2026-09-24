@@ -79,13 +79,26 @@ if all:
     dataset_splits[:train_end] = "train"
     dataset_splits[train_end:valid_end] = "validation"
     dataset_splits = dataset_splits[restore_order]
+else:
+    raw_dataset = np.load(common.DATA_PATH, allow_pickle=True).item()
+    x_values = raw_dataset["x"]
+
+    test_start = 200
+    test_end = test_start + len(dataset_tests["out_fields"])
+    sample_ids = raw_dataset["sample_ids"][test_start:test_end]
+    sample_dates = raw_dataset["sample_dates"][test_start:test_end]
+    quality = raw_dataset["quality"][test_start:test_end].copy()
+    quality *= np.array([24, 2, 2, 2, 1])
+    dataset_splits = np.full(len(sample_ids), "test", dtype=object)
 
 # %%
 num_samples, num_days = out_fields_FOM.shape[:2]
 rmse_values = np.sqrt(
     np.mean(np.square(out_fields_ROM - out_fields_FOM), axis=(2, 3))
 )
-rmse_max = max(float(rmse_values.max()), 1e-12)
+value_range = np.max(out_fields_FOM) - np.min(out_fields_FOM)
+nrmse_values = rmse_values / max(float(value_range), 1e-12)
+nrmse_max = max(float(nrmse_values.max()), 1e-12)
 
 fig, (ax, quality_ax, rmse_ax) = plt.subplots(
     1, 3,
@@ -120,11 +133,11 @@ quality_ax.set_xlim(0, 28 * 24)
 quality_ax.set_xlabel("valid hours")
 quality_ax.invert_yaxis()
 
-rmse_bar = rmse_ax.bar([0], [rmse_values[0, 0]], width=0.6)
-rmse_ax.set_ylim(0, rmse_max * 1.05)
+rmse_bar = rmse_ax.bar([0], [nrmse_values[0, 0]], width=0.6)
+rmse_ax.set_ylim(0, nrmse_max * 1.05)
 rmse_ax.set_xlim(-0.6, 0.6)
 rmse_ax.set_xticks([])
-rmse_ax.set_ylabel("RMSE")
+rmse_ax.set_ylabel("NRMSE")
 
 date_text = fig.suptitle("")
 
@@ -153,10 +166,9 @@ def draw_frame(frame):
     fom.set_ydata(out_fields_FOM[sample_idx, day_idx, :, 0])
 
     if reconstruction:
-        fom_frame = out_fields_FOM[sample_idx, day_idx, :, 0]
         rom_frame = out_fields_ROM[sample_idx, day_idx, :, 0]
         rom.set_ydata(rom_frame)
-        rmse_bar[0].set_height(rmse_values[sample_idx, day_idx])
+        rmse_bar[0].set_height(nrmse_values[sample_idx, day_idx])
 
     for bar, value in zip(quality_bars, quality[sample_idx]):
         bar.set_width(value)
@@ -164,7 +176,6 @@ def draw_frame(frame):
     sample_start_hours = sample_dates[sample_idx]
     date = common.start_date + timedelta(hours=float(sample_start_hours))
 
-    sample_id = sample_ids[sample_idx]
     dataset_split = dataset_splits[sample_idx]
 
     date_text.set_text(
