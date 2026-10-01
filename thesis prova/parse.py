@@ -1,16 +1,18 @@
+import os
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 import json
 import pandas as pd
 import numpy as np
 from datetime import datetime
-import common
 
 dt = 28 # number of days in a sample
 wave_n = 24
 tide_n = 24
 train_threshold = 0.9
-test_threshold = 0.7
-start_date = datetime(1987, 1, 5)
-end_date = datetime(2024, 12, 24)
+test_threshold = 0.5
+start_date = datetime(1997, 4, 1)
+end_date = datetime(2019, 1, 31 )
 delta = (end_date - start_date).total_seconds() / 3600
 
 def parse_xaxis(value):
@@ -23,7 +25,7 @@ def parse_coast_date(value):
 def parse_date(dt):
     return (dt - start_date).total_seconds() / 3600
 
-with open("thesis/data/coast.json", "r", encoding="utf-8") as f:
+with open("thesis prova/data/coast.json", "r", encoding="utf-8") as f:
     coast = json.load(f)
 
 xaxis = [parse_xaxis(x) for x in coast["xaxis"]]
@@ -33,17 +35,38 @@ series = coast["series"]
 coast_dates = []
 values = []
 
-for value in series:
+time = 0
+i = 0
+while parse_coast_date(series[i][0]) < time:
+    i += 1
+while time < delta:
+    coast_dates.append(time)
+    value = series[i]
     date = parse_coast_date(value[0])
-    coast_dates.append(date)
-    measurements = [float(x) for x in value[1:]]
+    if date == time:
+        measurements = [float(x) for x in value[1:]]
+        i += 1
+    else:
+        previous_value = series[i - 1]
+        previous_date = parse_coast_date(previous_value[0])
+        measurements1 = [float(x) for x in previous_value[1:]]
+        measurements2 = [float(x) for x in value[1:]]
+
+        measurements = [float(x + (y - x) * ((time - previous_date) / (date - previous_date))) for x, y in zip(measurements1, measurements2)]
+
+    time += 24
+
     values.append(measurements)
+
+for i in range(len(values) - 1):
+        for j in range(len(values[i])):
+            values[i][j] = values[i+1][j] - values[i][j]
 
 coast_dates = np.asarray(coast_dates, dtype=np.float64)
 values = np.asarray(values, dtype=np.float64)
 
 
-with open("thesis/data/wave.csv", "r", encoding="utf-8") as f:
+with open("thesis prova/data/wave.csv", "r", encoding="utf-8") as f:
     wave = pd.read_csv(f)
 
 wave_dates = pd.to_datetime(wave["date"], format="%Y/%m/%d %H:%M:%S")
@@ -55,7 +78,7 @@ ts = np.asarray(wave["T"], dtype=np.float64)
 dirs = np.asarray(wave["Dir"], dtype=np.float64)
 
 
-with open("thesis/data/tide.csv", "r", encoding="utf-8") as f:
+with open("thesis prova/data/tide.csv", "r", encoding="utf-8") as f:
     tide = pd.read_csv(f)
 
 tide_dates = pd.to_datetime(tide["date"], format="%Y/%m/%d %H:%M:%S")
@@ -70,16 +93,19 @@ def split_values(values, dates, dt):
     output = []
     qualities = [] # check how much data is real and how much comes from interpolation
     i = 0
-    time = dates[i]
+    time = 0
+    while dates[i] < time:
+        i += 1
+
     sample_dates = []
 
-    while dates[i] < delta:
+    while time < delta and dates[i] < delta:
         sample_dates.append(time)
         quality = dt/24
         samples = []
         initial_time = time
 
-        while time - initial_time < dt and dates[i] < delta:
+        while time - initial_time < dt and time < delta and dates[i] < delta:
             if dates[i] == time:
                 samples.append(values[i])
                 i += 1
@@ -123,105 +149,105 @@ def split_signals(hs, ts, dirs, wave_dates, tides, tide_dates, dt):
         b = 0
         while current_time < dt and time < delta:
             subtime = 0
-            h = 0
-            t = 0
-            dir = 0
-            tide = 0
+            h = []
+            t = []
+            dir = []
+            tide = []
             while subtime < 24:
                 if i < len(wave_dates) and wave_dates[i] == time:
                     if not np.isnan(hs[i]):
-                        h += hs[i] ** 2
+                        h += [hs[i] ** 2]
                     else:
                         h_quality -= 1
                         if current_time > 0:
-                            h += signal[-1][0] ** 2
+                            h += [signal[-1][0]]
                         elif time > 0 and subtime == 0:
-                            h += signals[-1][-1][0] ** 2
+                            h += [signals[-1][-1][0]]
+                        else:
+                            h += [0.78 ** 2]
                     if not np.isnan(ts[i]):
-                        t += ts[i]
+                        t += [ts[i]]
                     else:
                         t_quality -= 1
                         if current_time > 0:
-                            t += signal[-1][1]
+                            t += [signal[-1][4]]
                         elif time > 0 and subtime == 0:
-                            t += signals[-1][-1][1]
+                            t += [signals[-1][-1][4]]
+                        else:
+                            t += [6.9]
                     if not np.isnan(dirs[i]):
-                        dir += dirs[i]
+                        dir += [dirs[i]]
                     else:
                         dir_quality -= 1
                         if current_time > 0:
-                            dir += signal[-1][2]
+                            dir += [signal[-1][8]]
                         elif time > 0 and subtime == 0:
-                            dir += signals[-1][-1][2]
+                            dir += [signals[-1][-1][8]]
+                        else:
+                            dir += [6.81]
                     i += 1
                 else:
                     h_quality -= 1
                     t_quality -= 1
                     dir_quality -= 1
                     if current_time > 0:
-                        h += signal[-1][0] ** 2
-                        t += signal[-1][1]
-                        dir += signal[-1][2]
+                        h += [signal[-1][0]]
+                        t += [signal[-1][4]]
+                        dir += [signal[-1][8]]
                     elif time > 0 and subtime == 0:
-                        h += signals[-1][-1][0] ** 2
-                        t += signals[-1][-1][1]
-                        dir += signals[-1][-1][2]
+                        h += [signals[-1][-1][0]]
+                        t += [signals[-1][-1][4]]
+                        dir += [signals[-1][-1][8]]
+                    else:
+                        h += [0.78 ** 2]
+                        t += [6.9]
+                        dir += [6.81]
                 if j < len(tide_dates) and tide_dates[j] == time:
                     if not np.isnan(tides[j]):
-                        tide += tides[j]
+                        tide += [tides[j]]
                     else:
                         tide_quality -= 1
                         if current_time > 0:
-                            tide += signal[-1][3]
+                            tide += [signal[-1][12]]
                         elif time > 0 and subtime == 0:
-                            tide += signals[-1][-1][3]
+                            tide += [signals[-1][-1][12]]
+                        else:
+                            tide += [1.72]
                     j += 1
                 else:
                     tide_quality -= 1
                     if current_time > 0:
-                        tide += signal[-1][3]
+                        tide += [signal[-1][12]]
                     elif time > 0 and subtime == 0:
-                        tide += signals[-1][-1][3]
+                        tide += [signals[-1][-1][12]]
+                    else:
+                        tide += [1.72]
                 subtime += 1
                 time += 1
 
             current_time += 24
-            h /= wave_n
-            t /= wave_n
-            dir /= wave_n
-            tide /= tide_n
-            signal.append([h, t, dir, tide])  
 
-            for x in range(common.n_points):
-                if b > 0:
-                    y = 0
-                    k = 1
-                    if b > 1:
-                        l = 0
-                        m = 2
-                    elif a > 0:
-                        l = 1
-                        m = 0
-                    else:
-                        l = 0
-                        m = 0
-                elif a > 0:
-                    y = 1
-                    k = 0
-                    l = 1
-                    m = 1
-                else:
-                    y = 0
-                    k = 0
-                    l = 0
-                    m = 0
+            hmean = np.mean(h)
+            hmax = np.max(h)
+            hmin = np.min(h)
+            hdev = np.std(h)
 
-                if a < len(output):
-                    height = output[a - y][b - k][x*len(xaxis)//common.n_points]
-                    previous = output[a - l][b - m][x*len(xaxis)//common.n_points]
-                    change = height - previous
-                    signal[-1].append(height)
-                    signal[-1].append(change)
+            tmean = np.mean(t)
+            tmax = np.max(t)
+            tmin = np.min(t)
+            tdev = np.std(t)
+
+            dirmean = np.mean(dir)
+            dirmax = np.max(dir)
+            dirmin = np.min(dir)
+            dirdev = np.std(dir)
+
+            tidemean = np.mean(tide)
+            tidemax = np.max(tide)
+            tidemin = np.min(tide)
+            tidedev = np.std(tide)
+
+            signal.append([hmean, hmax, hmin, hdev, tmean, tmax, tmin, tdev, dirmean, dirmax, dirmin, dirdev, tidemean, tidemax, tidemin, tidedev])  
 
             b += 1
 
@@ -238,7 +264,7 @@ def split_signals(hs, ts, dirs, wave_dates, tides, tide_dates, dt):
     return signals, h_qualities, t_qualities, dir_qualities, tide_qualities
 
 output, a, sample_dates = split_values(values, coast_dates, dt)  
-print(tides)  
+
 signals, b, c, d, e = split_signals(hs, ts, dirs, wave_dates, tides, tide_dates, dt)
 
 scores = []
@@ -280,12 +306,47 @@ dataset = {
     "t": np.arange(dt, dtype=np.float64) * 24
 }
 
-"""
 print(dataset["x"].shape)
 print(dataset["t"].shape)
 print(dataset["output"].shape)
 print(dataset["sign"].shape)
-"""
 
-np.save("thesis/data/data.npy", dataset)
+print(dataset["output"])
+
+print(np.min(dataset["output"][:, :, :]))
+print(np.max(dataset["output"][:, :, :]))
+print(np.min(dataset["sign"][:, :, 0]))
+print(np.max(dataset["sign"][:, :, 0]))
+print(np.min(dataset["sign"][:, :, 1]))
+print(np.max(dataset["sign"][:, :, 1]))
+print(np.min(dataset["sign"][:, :, 2]))
+print(np.max(dataset["sign"][:, :, 2]))
+print(np.min(dataset["sign"][:, :, 3]))
+print(np.max(dataset["sign"][:, :, 3]))
+print(np.min(dataset["sign"][:, :, 4]))
+print(np.max(dataset["sign"][:, :, 4]))
+print(np.min(dataset["sign"][:, :, 5]))
+print(np.max(dataset["sign"][:, :, 5]))
+print(np.min(dataset["sign"][:, :, 6]))
+print(np.max(dataset["sign"][:, :, 6]))
+print(np.min(dataset["sign"][:, :, 7]))
+print(np.max(dataset["sign"][:, :, 7]))
+print(np.min(dataset["sign"][:, :, 8]))
+print(np.max(dataset["sign"][:, :, 8]))
+print(np.min(dataset["sign"][:, :, 9]))
+print(np.max(dataset["sign"][:, :, 9]))
+print(np.min(dataset["sign"][:, :, 10]))
+print(np.max(dataset["sign"][:, :, 10]))
+print(np.min(dataset["sign"][:, :, 11]))
+print(np.max(dataset["sign"][:, :, 11]))
+print(np.min(dataset["sign"][:, :, 12]))
+print(np.max(dataset["sign"][:, :, 12]))
+print(np.min(dataset["sign"][:, :, 13]))
+print(np.max(dataset["sign"][:, :, 13]))
+print(np.min(dataset["sign"][:, :, 14]))
+print(np.max(dataset["sign"][:, :, 14]))
+print(np.min(dataset["sign"][:, :, 15]))
+print(np.max(dataset["sign"][:, :, 15]))
+
+np.save("thesis prova/data/data.npy", dataset)
 print("data converted to npy")

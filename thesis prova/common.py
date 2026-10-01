@@ -6,11 +6,10 @@ from datetime import datetime
 
 tf.keras.backend.set_floatx('float64')
 
-start_date = datetime(1987, 1, 5)
+start_date = datetime(1997, 4, 1)
 dt = 24
 dt_base = 24
-num_latent_states = 30
-n_points = 20
+num_latent_states = 20
 
 problem = {
     "space": {
@@ -18,15 +17,25 @@ problem = {
     },
     "input_parameters": [],
     "input_signals": [
-        { "name": "h" },
-        { "name": "t" },
-        { "name": "dir" },
-        { "name": "tide" },
-        *[
-            {"name": f"{signal}_{point}"}
-            for point in range(n_points)
-            for signal in ("height", "difference")
-        ],
+        { "name": "hmean" },
+        { "name": "hmax" },
+        { "name": "hmin" },
+        { "name": "hdev" },
+
+        { "name": "tmean" },
+        { "name": "tmax" },
+        { "name": "tmin" },
+        { "name": "tdev" },
+
+        { "name": "dirmean" },
+        { "name": "dirmax" },
+        { "name": "dirmin" },
+        { "name": "dirdev" },
+
+        { "name": "tidemean" },
+        { "name": "tidemax" },
+        { "name": "tidemin" },
+        { "name": "tidedev" }
     ],
     "output_fields": [
         { "name": "y" }
@@ -39,49 +48,61 @@ normalization = {
         'time_constant' : dt_base
     },
     'input_signals': {
-        'h': { 'min': 0, 'max': 8 },
-        't': { 'min': 2.5, 'max': 18 },
-        'dir': { 'min': 12, 'max': 168 },
-        'tide': { 'min': 0.5, 'max': 3 },
-        **{
-            f'height_{point}': {'min': -700, 'max': 900}
-            for point in range(n_points)
-        },
-        **{
-            f'difference_{point}': {'min': -50, 'max': 50}
-            for point in range(n_points)
-        },
+        'hmean': { 'min': 0.2, 'max': 22.6 },
+        'hmax': { 'min': 0.2, 'max': 63 },
+        'hmin': { 'min': 0, 'max': 16.7 },
+        'hdev': { 'min': 0, 'max': 16.5 },
+
+        'tmean': { 'min': 5.1, 'max': 14.7 },
+        'tmax': { 'min': 5.5, 'max': 18.1 },
+        'tmin': { 'min': 2.9, 'max': 14.2 },
+        'tdev': { 'min': 0, 'max': 4.5 },
+
+        'dirmean': { 'min': 6.8, 'max': 133 },
+        'dirmax': { 'min': 6.8, 'max': 168 },
+        'dirmin': { 'min': 6.8, 'max': 124 },
+        'dirdev': { 'min': 0, 'max': 60 },
+
+        'tidemean': { 'min': 1.4, 'max': 2.6 },
+        'tidemax': { 'min': 1.6, 'max': 3.14 },
+        'tidemin': { 'min': 0.56, 'max': 1.93 },
+        'tidedev': { 'min': 0, 'max': 0.54}
     },
     'output_fields': {
-        'y': { 'min': -700, 'max': +900 }
+        'y': { 'min': -200, 'max': +200 }
     }
 }
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DATA_PATH = REPO_ROOT / 'thesis' / 'data' /'data.npy'
-MODEL_DIR = REPO_ROOT / 'thesis' / 'model' / 'trained_model'
-HISTORY_PATH = REPO_ROOT / 'thesis' / 'model' / 'training_history.npz'
+DATA_PATH = REPO_ROOT / 'thesis prova' / 'data' /'data.npy'
+MODEL_DIR = REPO_ROOT / 'thesis prova' / 'model' / 'trained_model'
+HISTORY_PATH = REPO_ROOT / 'thesis prova' / 'model' / 'training_history.npz'
 
 def load_datasets():
     a = 0
     b = 120
     x = 100
-    array = np.sort(np.random.choice(np.arange(a, b), size=x, replace=False))
-    remaining_1 = np.setdiff1d(np.arange(a, b), array)
-    dataset_train = utils.MY_create_dataset(DATA_PATH, array)
+    train_indices = np.sort(np.random.choice(np.arange(a, b), size=x, replace=False))
+    remaining_1 = np.setdiff1d(np.arange(a, b), train_indices)
+    dataset_train = utils.MY_create_dataset(DATA_PATH, train_indices)
     
     a = 120
-    b = 200
-    x = 60
-    array = np.sort(np.random.choice(np.arange(a, b), size=x, replace=False))
-    dataset_valid = utils.MY_create_dataset(DATA_PATH, array)
-    remaining_2 = np.setdiff1d(np.arange(a, b), array)
+    b = 150
+    x = 30
+    valid_indices = np.sort(np.random.choice(np.arange(a, b), size=x, replace=False))
+    dataset_valid = utils.MY_create_dataset(DATA_PATH, valid_indices)
+    remaining_2 = np.setdiff1d(np.arange(a, b), valid_indices)
 
-    dataset_tests = utils.MY_create_dataset(DATA_PATH, np.concatenate([remaining_1, remaining_2, np.arange(200, 240)]))
+    test_indices = np.concatenate([remaining_1, remaining_2, np.arange(200, 240)])
+    dataset_tests = utils.MY_create_dataset(DATA_PATH, test_indices)
 
     utils.process_dataset(dataset_train, problem, normalization)
     utils.process_dataset(dataset_valid, problem, normalization)
     utils.process_dataset(dataset_tests, problem, normalization)
+
+    dataset_train['sample_indices'] = train_indices
+    dataset_valid['sample_indices'] = valid_indices
+    dataset_tests['sample_indices'] = test_indices
 
     return dataset_train, dataset_valid, dataset_tests
 

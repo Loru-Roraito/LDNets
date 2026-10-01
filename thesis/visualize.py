@@ -72,22 +72,18 @@ if all:
     quality = raw_dataset["quality"][restore_order]
     quality *= np.array([24, 2, 2, 2, 1])
 
-    train_end = len(dataset_train["out_fields"])
-    valid_end = train_end + len(dataset_valid["out_fields"])
-
-    dataset_splits = np.full(len(sample_ids), "test", dtype=object)
-    dataset_splits[:train_end] = "train"
-    dataset_splits[train_end:valid_end] = "validation"
-    dataset_splits = dataset_splits[restore_order]
+    dataset_splits_by_row = np.full(len(raw_dataset["output"]), "test", dtype=object)
+    dataset_splits_by_row[dataset_train["sample_indices"]] = "train"
+    dataset_splits_by_row[dataset_valid["sample_indices"]] = "validation"
+    dataset_splits = dataset_splits_by_row[restore_order]
 else:
     raw_dataset = np.load(common.DATA_PATH, allow_pickle=True).item()
     x_values = raw_dataset["x"]
 
-    test_start = 200
-    test_end = test_start + len(dataset_tests["out_fields"])
-    sample_ids = raw_dataset["sample_ids"][test_start:test_end]
-    sample_dates = raw_dataset["sample_dates"][test_start:test_end]
-    quality = raw_dataset["quality"][test_start:test_end].copy()
+    test_indices = dataset_tests["sample_indices"]
+    sample_ids = raw_dataset["sample_ids"][test_indices]
+    sample_dates = raw_dataset["sample_dates"][test_indices]
+    quality = raw_dataset["quality"][test_indices].copy()
     quality *= np.array([24, 2, 2, 2, 1])
     dataset_splits = np.full(len(sample_ids), "test", dtype=object)
 
@@ -248,7 +244,7 @@ animation = FuncAnimation(
     fig,
     update,
     frames=num_frames,
-    interval=200,
+    interval=50,
     blit=False,
     repeat=False
 )
