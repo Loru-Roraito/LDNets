@@ -9,8 +9,8 @@ tf.keras.backend.set_floatx('float64')
 start_date = datetime(1997, 4, 1)
 dt = 24
 dt_base = 24
-num_latent_states = 30
-n_points = 20
+num_latent_states = 5
+n_points = 30
 
 problem = {
     "space": {
