@@ -70,6 +70,7 @@ if all:
     out_fields_ROM = utils.denormalize_output(
         out_fields, common.problem, common.normalization
     ).numpy()
+    output_real = dataset_all["output_real"].numpy()
 
     sample_dates = raw_dataset["sample_dates"][restore_order]
     quality = raw_dataset["quality"][restore_order]
@@ -88,6 +89,7 @@ else:
     sample_dates = raw_dataset["sample_dates"][test_indices]
     quality = raw_dataset["quality"][test_indices].copy()
     quality *= np.array([24, 2, 2, 2, 1])
+    output_real = dataset_tests["output_real"].numpy()
     dataset_splits = np.full(len(sample_ids), "test", dtype=object)
 
 # %%
@@ -162,7 +164,8 @@ pause_button = Button(button_ax, "Pause")
 def draw_frame(frame):
     sample_idx, day_idx = divmod(int(frame), num_days)
 
-    fom.set_ydata(out_fields_FOM[sample_idx, day_idx, :, 0])
+    if output_real[sample_idx, day_idx]:
+        fom.set_ydata(out_fields_FOM[sample_idx, day_idx, :, 0])
 
     if reconstruction:
         rom_frame = out_fields_ROM[sample_idx, day_idx, :, 0]
