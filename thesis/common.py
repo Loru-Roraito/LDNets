@@ -196,6 +196,7 @@ class LDNetModel:
         output = (output ** 3 + alpha * output) / (1 + alpha)
         return output[:, 0, :, :]
 
+    ## TODO: check
     def _autoregressive_output(self, dataset):
         signals = dataset['inp_signals']
         state = tf.zeros(
@@ -342,9 +343,15 @@ epsilon = 1e-4
 def get_direction(velocity):
     return tf.math.divide(velocity, (epsilon + tf.expand_dims(tf.norm(velocity, axis=3), axis=-1)))
  
-def make_loss_fn(model, dataset, target_velocity, target_direction):
+def make_loss_fn(
+    model,
+    dataset,
+    target_velocity,
+    target_direction,
+    autoregressive=False,
+):
     def loss_fn():
-        velocity = model(dataset)
+        velocity = model(dataset, autoregressive=autoregressive)
         MSE_velocity = tf.reduce_mean(tf.square(velocity - target_velocity))
         direction = get_direction(velocity)
         MSE_direction = tf.reduce_mean(tf.square(direction - target_direction))
