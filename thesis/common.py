@@ -178,7 +178,144 @@ class LDNetModel:
         output = (output ** 3 + alpha * output) / (1 + alpha)
         return output
  
-    def __call__(self, dataset):
+    def _reconstruct_timestep(self, dataset, state, inp_signals):
+        states_expanded = tf.broadcast_to(
+            tf.expand_dims(tf.expand_dims(state, axis=1), axis=1),
+            [dataset['num_samples'], 1, dataset['num_points'], self.num_latent_states],
+        )
+        inp_signals_expanded = tf.broadcast_to(
+            tf.expand_dims(tf.expand_dims(inp_signals, axis=1), axis=1),
+            [dataset['num_samples'], 1, dataset['num_points'], len(self.problem['input_signals'])],
+        )
+        output = self.NNrec(tf.concat([
+            states_expanded,
+            inp_signals_expanded,
+            dataset['points_full'][:, 0:1, :, :],
+        ], axis=3))
+        alpha = 0.05
+        output = (output ** 3 + alpha * output) / (1 + alpha)
+        return output[:, 0, :, :]
+
+    def _autoregressive_output(self, dataset):
+        signals = dataset['inp_signals']
+        state = tf.zeros(
+            (dataset['num_samples'], self.num_latent_states),
+            dtype=tf.float64,
+        )
+        outputs = tf.TensorArray(
+            tf.float64,
+            size=dataset['num_times'],
+            element_shape=(
+                None,
+                dataset['num_points'],
+                len(self.problem['output_fields']),
+            ),
+        )
+        previous_output = None
+        previous_previous_output = None
+        num_feedback_points = (
+            len(self.problem['input_signals']) - 16
+        ) // 2
+        feedback_indices = tf.constant(
+            np.arange(num_feedback_points) * dataset['num_points'] // num_feedback_points,
+            dtype=tf.int32,
+        )
+
+        output_min = tf.constant(
+            self.normalization['output_fields']['y']['min'], tf.float64
+        )
+        output_max = tf.constant(
+            self.normalization['output_fields']['y']['max'], tf.float64
+        )
+        difference_min = tf.constant(
+            self.normalization['input_signals']['difference_0']['min'], tf.float64
+        )
+        difference_max = tf.constant(
+            self.normalization['input_signals']['difference_0']['max'], tf.float64
+        )
+
+        for i in range(dataset['num_times']):
+            timestep_signals = signals[:, i, :]
+            if previous_output is not None:
+                height = tf.gather(previous_output[:, :, 0], feedback_indices, axis=1)
+                previous_height = signals[:, 0, 16::2]
+                if i > 1:
+                    real_height = tf.gather(
+                        dataset['out_fields'][:, i - 1, :, 0],
+                        feedback_indices,
+                        axis=1,
+                    )
+                    real_available = tf.expand_dims(
+                        dataset['output_real'][:, i - 1],
+                        axis=1,
+                    )
+                    height = tf.where(real_available, real_height, height)
+
+                    previous_height = tf.gather(
+                        previous_previous_output[:, :, 0],
+                        feedback_indices,
+                        axis=1,
+                    )
+                    previous_real_height = tf.gather(
+                        dataset['out_fields'][:, i - 2, :, 0],
+                        feedback_indices,
+                        axis=1,
+                    )
+                    previous_real_available = tf.expand_dims(
+                        dataset['output_real'][:, i - 2],
+                        axis=1,
+                    )
+                    previous_height = tf.where(
+                        previous_real_available,
+                        previous_real_height,
+                        previous_height,
+                    )
+                else:
+                    real_height = tf.gather(
+                        dataset['out_fields'][:, 0, :, 0],
+                        feedback_indices,
+                        axis=1,
+                    )
+                    real_available = tf.expand_dims(
+                        dataset['output_real'][:, 0],
+                        axis=1,
+                    )
+                    height = tf.where(real_available, real_height, height)
+                height_physical = 0.5 * (
+                    output_min + output_max
+                    + (output_max - output_min) * height
+                )
+                previous_height_physical = 0.5 * (
+                    output_min + output_max
+                    + (output_max - output_min) * previous_height
+                )
+                difference = height_physical - previous_height_physical
+                difference = (
+                    2 * difference - difference_min - difference_max
+                ) / (difference_max - difference_min)
+
+                for point in range(num_feedback_points):
+                    signal_index = 16 + 2 * point
+                    timestep_signals = tf.concat([
+                        timestep_signals[:, :signal_index],
+                        height[:, point:point + 1],
+                        difference[:, point:point + 1],
+                        timestep_signals[:, signal_index + 2:],
+                    ], axis=1)
+
+            state = state + self.dt / self.normalization['time']['time_constant'] * self.NNdyn(
+                tf.concat([state, timestep_signals], axis=-1)
+            )
+            output = self._reconstruct_timestep(dataset, state, timestep_signals)
+            outputs = outputs.write(i, output)
+            previous_previous_output = previous_output
+            previous_output = output
+
+        return tf.transpose(outputs.stack(), perm=(1, 0, 2, 3))
+
+    def __call__(self, dataset, autoregressive=False):
+        if autoregressive:
+            return self._autoregressive_output(dataset)
         states = self.evolve_dynamics(dataset)
         return self.reconstruct_output(dataset, states)
     

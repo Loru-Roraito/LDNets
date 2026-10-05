@@ -1,4 +1,7 @@
 # %%
+import os
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
@@ -35,7 +38,7 @@ axs.legend()
 plt.show()
 
 # %%
-out_fields = model(dataset_tests)
+out_fields = model(dataset_tests, autoregressive=True)
  
 # Since the LDNet works with normalized data, we map back the outputs into the original ranges.
 out_fields_FOM = utils.denormalize_output(dataset_tests['out_fields'], common.problem, common.normalization).numpy()
@@ -58,7 +61,7 @@ if all:
     dataset_all = utils.MY_create_dataset(common.DATA_PATH, all_indices[restore_order])
     utils.process_dataset(dataset_all, common.problem, common.normalization)
 
-    out_fields = model(dataset_all)
+    out_fields = model(dataset_all, autoregressive=True)
 
     out_fields_FOM = utils.denormalize_output(
         dataset_all["out_fields"], common.problem, common.normalization

@@ -71,6 +71,7 @@ tides = np.asarray(tide["tide"], dtype=np.float64)
 def split_values(values, dates, dt):
     dt = dt * 24
     output = []
+    output_real = []
     qualities = [] # check how much data is real and how much comes from interpolation
     i = 0
     time = 0
@@ -83,24 +84,29 @@ def split_values(values, dates, dt):
         sample_dates.append(time)
         quality = dt/24
         samples = []
+        real_samples = []
         initial_time = time
 
         while time - initial_time < dt and dates[i] < delta:
             if dates[i] == time:
                 samples.append(values[i])
+                real_samples.append(True)
                 i += 1
             else:
                 # linear interpolation
                 quality -= 1
                 samples.append((values[i - 1] + (values[i] - values[i - 1]) * ((time - dates[i - 1]) / (dates[i] - dates[i - 1]))))
+                real_samples.append(False)
             time += 24
 
         output.append(samples)
+        output_real.append(real_samples)
         qualities.append(quality - int((dt - (time - initial_time)) / 24))
 
     if len(output[-1]) < len(output[-2]):
         output.pop()
-    return output, qualities, sample_dates
+        output_real.pop()
+    return output, output_real, qualities, sample_dates
 
 def split_signals(hs, ts, dirs, wave_dates, tides, tide_dates, dt):
     dt = dt * 24
@@ -274,7 +280,7 @@ def split_signals(hs, ts, dirs, wave_dates, tides, tide_dates, dt):
     
     return signals, h_qualities, t_qualities, dir_qualities, tide_qualities
 
-output, a, sample_dates = split_values(values, coast_dates, dt)  
+output, output_real, a, sample_dates = split_values(values, coast_dates, dt)
 
 signals, b, c, d, e = split_signals(hs, ts, dirs, wave_dates, tides, tide_dates, dt)
 
@@ -297,6 +303,7 @@ quality = quality[order]
 scores = np.asarray(scores, dtype=np.float64)[order]
 signals = np.asarray(signals, dtype=np.float64)[order]
 output = np.asarray(output, dtype=np.float64)[order]
+output_real = np.asarray(output_real, dtype=bool)[order]
 
 for i, score in enumerate(scores):
     if score <= train_threshold:
@@ -311,6 +318,7 @@ dataset = {
     "x": xaxis,
     "sign": signals,
     "output": output,
+    "output_real": output_real,
     "sample_ids": sample_ids,
     "sample_dates": sample_dates,
     "quality": quality,

@@ -57,6 +57,12 @@ def process_dataset(dataset, problem, normalization_definition, dt = None, num_p
         if dataset['inp_signals'] is not None:
             dataset['inp_signals'] = interpolate.interp1d(dataset['times'], dataset['inp_signals'], axis = 1)(times)
         dataset['out_fields'] = interpolate.interp1d(dataset['times'], dataset['out_fields'], axis = 1)(times)
+        dataset['output_real'] = interpolate.interp1d(
+            dataset['times'],
+            dataset['output_real'].astype(np.float64),
+            axis=1,
+            kind='nearest',
+        )(times).astype(bool)
         dataset['times'] = times
 
     num_samples = dataset['out_fields'].shape[0]
@@ -84,6 +90,7 @@ def process_dataset(dataset, problem, normalization_definition, dt = None, num_p
     if dataset['inp_signals'] is not None:
         dataset['inp_signals'] = tf.convert_to_tensor(dataset['inp_signals'], tf.float64)
     dataset['out_fields'] = tf.convert_to_tensor(dataset['out_fields'], tf.float64)
+    dataset['output_real'] = tf.convert_to_tensor(dataset['output_real'], tf.bool)
 
 def plot_output_1D(dataset, out_fields_ref, out_fields_app, n_row, n_col, title_ROM = 'ROM'):
     fig = plt.figure(figsize=(10, 8), constrained_layout=False)
@@ -141,6 +148,10 @@ def MY_create_dataset(dataset_path, idxs):
     print('loading dataset %s' % dataset_path)
     dataset = np.load(dataset_path, allow_pickle = True)[()]
     print('loaded dataset')
+    output_real = dataset.get(
+        'output_real',
+        np.ones(dataset['output'].shape[:2], dtype=bool),
+    )
 
     new_dataset = {
         'points' : dataset['x'][:, None], # [num_points x num_coordinates]
@@ -148,6 +159,7 @@ def MY_create_dataset(dataset_path, idxs):
         'inp_parameters' : None, # [num_samples x num_par]
         'inp_signals' : dataset['sign'][idxs,:,:], # [num_samples x num_times x num_signals]
         'out_fields' : dataset['output'][idxs,:,:,None], # [num_samples x num_times x num_points x num_fields]
+        'output_real' : output_real[idxs,:], # [num_samples x num_times]
     }
 
     return new_dataset
