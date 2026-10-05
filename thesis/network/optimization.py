@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import numpy as np
 import tensorflow as tf
 import scipy.optimize as sopt
@@ -67,8 +69,9 @@ class OptimizationProblem():
             self.iterations_history.append(self.iteration)
             self.loss_train_history.append(self.ag_train_loss())
             self.loss_valid_history.append(self.ag_valid_loss())
-            print('epoch% 5d   -   training loss: %1.3e   -   validation loss %1.3e' % 
-                  (self.iteration, self.loss_train_history[-1], self.loss_valid_history[-1]))
+            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            print('[%s] epoch% 5d   -   training loss: %1.3e   -   validation loss %1.3e' %
+                  (timestamp, self.iteration, self.loss_train_history[-1], self.loss_valid_history[-1]))
         self.iteration += 1
         
     def optimize_keras(self, num_epochs, optimizer):

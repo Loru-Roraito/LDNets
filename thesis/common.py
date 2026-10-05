@@ -10,7 +10,7 @@ start_date = datetime(1997, 4, 1)
 dt = 24
 dt_base = 24
 num_latent_states = 5
-n_points = 30
+n_points = 10
 
 problem = {
     "space": {
