@@ -14,13 +14,22 @@ from scipy import stats
 from matplotlib.animation import FuncAnimation
 from matplotlib.widgets import Slider, Button
 
-all = True
+hourly = True
 reconstruction = True
 
 # %%
-dataset_train, dataset_valid, dataset_tests = common.load_datasets()
+if hourly:
+    data_path = common.DATA_PATH_HOURLY
+    dataset_train, dataset_valid, dataset_tests = common.load_datasets_hourly()
+    num_input_signals = np.load(data_path, allow_pickle=True).item()['sign'].shape[2]
+    problem, normalization = common.configuration_for_signal_count(num_input_signals)
+else:
+    data_path = common.DATA_PATH
+    dataset_train, dataset_valid, dataset_tests = common.load_datasets()
+    problem = common.problem
+    normalization = common.normalization
 
-model = common.LDNetModel.load(common.problem, common.normalization, common.num_latent_states, common.dt, common.dt_base, common.MODEL_DIR)
+model = common.LDNetModel.load(problem, normalization, common.num_latent_states, common.dt, common.dt_base, common.MODEL_DIR)
 
 # %%
 history = np.load(common.HISTORY_PATH)
@@ -50,47 +59,35 @@ R_coeff = stats.pearsonr(np.reshape(out_fields_ROM, (-1,)), np.reshape(out_field
 print('Normalized RMSE:       %1.3e' % NRMSE)
 print('Pearson dissimilarity: %1.3e' % (1 - R_coeff[0]))
 
-if all:
-    raw_dataset = np.load(common.DATA_PATH, allow_pickle=True).item()
-    x_values = raw_dataset["x"]
-    all_indices = np.arange(len(raw_dataset["output"]))
-    raw_sample_ids = raw_dataset["sample_ids"]
-    restore_order = np.argsort(raw_sample_ids)
-    sample_ids = raw_sample_ids[restore_order]
+raw_dataset = np.load(data_path, allow_pickle=True).item()
+x_values = raw_dataset["x"]
+all_indices = np.arange(len(raw_dataset["output"]))
+raw_sample_ids = raw_dataset["sample_ids"]
+restore_order = np.argsort(raw_sample_ids)
+sample_ids = raw_sample_ids[restore_order]
 
-    dataset_all = utils.MY_create_dataset(common.DATA_PATH, all_indices[restore_order])
-    utils.process_dataset(dataset_all, common.problem, common.normalization)
+dataset_all = utils.MY_create_dataset(data_path, all_indices[restore_order])
+utils.process_dataset(dataset_all, problem, normalization)
 
-    out_fields = model(dataset_all, autoregressive=True)
+out_fields = model(dataset_all, autoregressive=True)
 
-    out_fields_FOM = utils.denormalize_output(
-        dataset_all["out_fields"], common.problem, common.normalization
-    ).numpy()
+out_fields_FOM = utils.denormalize_output(
+    dataset_all["out_fields"], problem, normalization
+).numpy()
 
-    out_fields_ROM = utils.denormalize_output(
-        out_fields, common.problem, common.normalization
-    ).numpy()
-    output_real = dataset_all["output_real"].numpy()
+out_fields_ROM = utils.denormalize_output(
+    out_fields, problem, normalization
+).numpy()
+output_real = dataset_all["output_real"].numpy()
 
-    sample_dates = raw_dataset["sample_dates"][restore_order]
-    quality = raw_dataset["quality"][restore_order]
-    quality *= np.array([24, 2, 2, 2, 1])
+sample_dates = raw_dataset["sample_dates"][restore_order]
+quality = raw_dataset["quality"][restore_order]
+quality *= np.array([24, 2, 2, 2, 1])
 
-    dataset_splits_by_row = np.full(len(raw_dataset["output"]), "test", dtype=object)
-    dataset_splits_by_row[dataset_train["sample_indices"]] = "train"
-    dataset_splits_by_row[dataset_valid["sample_indices"]] = "validation"
-    dataset_splits = dataset_splits_by_row[restore_order]
-else:
-    raw_dataset = np.load(common.DATA_PATH, allow_pickle=True).item()
-    x_values = raw_dataset["x"]
-
-    test_indices = dataset_tests["sample_indices"]
-    sample_ids = raw_dataset["sample_ids"][test_indices]
-    sample_dates = raw_dataset["sample_dates"][test_indices]
-    quality = raw_dataset["quality"][test_indices].copy()
-    quality *= np.array([24, 2, 2, 2, 1])
-    output_real = dataset_tests["output_real"].numpy()
-    dataset_splits = np.full(len(sample_ids), "test", dtype=object)
+dataset_splits_by_row = np.full(len(raw_dataset["output"]), "test", dtype=object)
+dataset_splits_by_row[dataset_train["sample_indices"]] = "train"
+dataset_splits_by_row[dataset_valid["sample_indices"]] = "validation"
+dataset_splits = dataset_splits_by_row[restore_order]
 
 # %%
 num_samples, num_days = out_fields_FOM.shape[:2]

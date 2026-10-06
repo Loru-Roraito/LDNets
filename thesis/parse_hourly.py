@@ -82,7 +82,7 @@ def split_values(values, dates, dt):
 
     while dates[i] < delta:
         sample_dates.append(time)
-        quality = dt/24
+        quality = dt
         samples = []
         real_samples = []
         initial_time = time
@@ -97,7 +97,7 @@ def split_values(values, dates, dt):
                 quality -= 1
                 samples.append((values[i - 1] + (values[i] - values[i - 1]) * ((time - dates[i - 1]) / (dates[i] - dates[i - 1]))))
                 real_samples.append(False)
-            time += 24
+            time += 1
 
         output.append(samples)
         output_real.append(real_samples)
@@ -139,7 +139,7 @@ def split_signals(hs, ts, dirs, wave_dates, tides, tide_dates, dt):
             t = []
             dir = []
             tide = []
-            while subtime < 24:
+            while subtime < 1:
                 if i < len(wave_dates) and wave_dates[i] == time:
                     if not np.isnan(hs[i]):
                         h += [hs[i] ** 2]
@@ -211,7 +211,7 @@ def split_signals(hs, ts, dirs, wave_dates, tides, tide_dates, dt):
                 subtime += 1
                 time += 1
 
-            current_time += 24
+            current_time += 1
 
             hmean = np.mean(h)
             hmax = np.max(h)
@@ -322,7 +322,7 @@ dataset = {
     "sample_ids": sample_ids,
     "sample_dates": sample_dates,
     "quality": quality,
-    "t": np.arange(dt, dtype=np.float64) * 24
+    "t": np.arange(dt * 24, dtype=np.float64)
 }
 
 print(dataset["x"].shape)
@@ -365,5 +365,5 @@ print(np.min(dataset["sign"][:, :, 15]))
 print(np.max(dataset["sign"][:, :, 15]))
 """
 
-np.save("thesis/data/data.npy", dataset)
+np.save("thesis/data/data_hourly.npy", dataset)
 print("data converted to npy")

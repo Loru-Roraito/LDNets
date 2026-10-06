@@ -1,3 +1,4 @@
+from copy import deepcopy
 from pathlib import Path
 from network import utils
 import numpy as np
@@ -92,6 +93,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DATA_PATH = REPO_ROOT / 'thesis' / 'data' /'data.npy'
 MODEL_DIR = REPO_ROOT / 'thesis' / 'model' / 'trained_model'
 HISTORY_PATH = REPO_ROOT / 'thesis' / 'model' / 'training_history.npz'
+DATA_PATH_HOURLY = REPO_ROOT / 'thesis' / 'data' /'data_hourly.npy'
 
 def load_datasets():
     a = 0
@@ -120,6 +122,66 @@ def load_datasets():
     dataset_tests['sample_indices'] = test_indices
 
     return dataset_train, dataset_valid, dataset_tests
+
+def load_datasets_hourly():
+    raw_dataset = np.load(DATA_PATH_HOURLY, allow_pickle=True).item()
+    num_input_signals = raw_dataset['sign'].shape[2]
+    hourly_problem, hourly_normalization = configuration_for_signal_count(num_input_signals)
+
+    a = 0
+    b = 120
+    x = 100
+    train_indices = np.sort(np.random.choice(np.arange(a, b), size=x, replace=False))
+    remaining_1 = np.setdiff1d(np.arange(a, b), train_indices)
+    dataset_train = utils.MY_create_dataset(DATA_PATH_HOURLY, train_indices)
+    
+    a = 120
+    b = 150
+    x = 30
+    valid_indices = np.sort(np.random.choice(np.arange(a, b), size=x, replace=False))
+    dataset_valid = utils.MY_create_dataset(DATA_PATH_HOURLY, valid_indices)
+    remaining_2 = np.setdiff1d(np.arange(a, b), valid_indices)
+
+    test_indices = np.concatenate([remaining_1, remaining_2, np.arange(200, 240)])
+    dataset_tests = utils.MY_create_dataset(DATA_PATH_HOURLY, test_indices)
+
+    utils.process_dataset(dataset_train, hourly_problem, hourly_normalization)
+    utils.process_dataset(dataset_valid, hourly_problem, hourly_normalization)
+    utils.process_dataset(dataset_tests, hourly_problem, hourly_normalization)
+
+    dataset_train['sample_indices'] = train_indices
+    dataset_valid['sample_indices'] = valid_indices
+    dataset_tests['sample_indices'] = test_indices
+
+    return dataset_train, dataset_valid, dataset_tests
+
+def configuration_for_signal_count(num_input_signals):
+    num_feedback_signals = num_input_signals - 16
+    if num_feedback_signals < 0 or num_feedback_signals % 2 != 0:
+        raise ValueError(
+            'Expected 16 aggregate input signals plus height/difference pairs; '
+            f'got {num_input_signals} signals.'
+        )
+
+    configured_num_points = num_feedback_signals // 2
+    configured_problem = deepcopy(problem)
+    configured_problem['input_signals'] = configured_problem['input_signals'][
+        :num_input_signals
+    ]
+    configured_normalization = deepcopy(normalization)
+    configured_normalization['input_signals'] = {
+        signal['name']: configured_normalization['input_signals'][signal['name']]
+        for signal in configured_problem['input_signals']
+    }
+    configured_normalization['input_signals'].update({
+        f'height_{point}': normalization['input_signals'][f'height_{point}']
+        for point in range(configured_num_points)
+    })
+    configured_normalization['input_signals'].update({
+        f'difference_{point}': normalization['input_signals'][f'difference_{point}']
+        for point in range(configured_num_points)
+    })
+    return configured_problem, configured_normalization
 
 class LDNetModel:
     def __init__(self, problem, normalization, num_latent_states, dt, dt_base):
@@ -212,8 +274,6 @@ class LDNetModel:
                 len(self.problem['output_fields']),
             ),
         )
-        previous_output = None
-        previous_previous_output = None
         num_feedback_points = (
             len(self.problem['input_signals']) - 16
         ) // 2
@@ -234,54 +294,14 @@ class LDNetModel:
         difference_max = tf.constant(
             self.normalization['input_signals']['difference_0']['max'], tf.float64
         )
+        last_valid_height = signals[:, 0, 16::2]
+        previous_valid_height = last_valid_height
 
         for i in range(dataset['num_times']):
             timestep_signals = signals[:, i, :]
-            if previous_output is not None:
-                height = tf.gather(previous_output[:, :, 0], feedback_indices, axis=1)
-                previous_height = signals[:, 0, 16::2]
-                if i > 1:
-                    real_height = tf.gather(
-                        dataset['out_fields'][:, i - 1, :, 0],
-                        feedback_indices,
-                        axis=1,
-                    )
-                    real_available = tf.expand_dims(
-                        dataset['output_real'][:, i - 1],
-                        axis=1,
-                    )
-                    height = tf.where(real_available, real_height, height)
-
-                    previous_height = tf.gather(
-                        previous_previous_output[:, :, 0],
-                        feedback_indices,
-                        axis=1,
-                    )
-                    previous_real_height = tf.gather(
-                        dataset['out_fields'][:, i - 2, :, 0],
-                        feedback_indices,
-                        axis=1,
-                    )
-                    previous_real_available = tf.expand_dims(
-                        dataset['output_real'][:, i - 2],
-                        axis=1,
-                    )
-                    previous_height = tf.where(
-                        previous_real_available,
-                        previous_real_height,
-                        previous_height,
-                    )
-                else:
-                    real_height = tf.gather(
-                        dataset['out_fields'][:, 0, :, 0],
-                        feedback_indices,
-                        axis=1,
-                    )
-                    real_available = tf.expand_dims(
-                        dataset['output_real'][:, 0],
-                        axis=1,
-                    )
-                    height = tf.where(real_available, real_height, height)
+            if i > 0:
+                height = last_valid_height
+                previous_height = previous_valid_height
                 height_physical = 0.5 * (
                     output_min + output_max
                     + (output_max - output_min) * height
@@ -309,8 +329,26 @@ class LDNetModel:
             )
             output = self._reconstruct_timestep(dataset, state, timestep_signals)
             outputs = outputs.write(i, output)
-            previous_previous_output = previous_output
-            previous_output = output
+
+            real_height = tf.gather(
+                dataset['out_fields'][:, i, :, 0],
+                feedback_indices,
+                axis=1,
+            )
+            real_available = tf.expand_dims(
+                dataset['output_real'][:, i],
+                axis=1,
+            )
+            previous_valid_height = tf.where(
+                real_available,
+                last_valid_height,
+                previous_valid_height,
+            )
+            last_valid_height = tf.where(
+                real_available,
+                real_height,
+                last_valid_height,
+            )
 
         return tf.transpose(outputs.stack(), perm=(1, 0, 2, 3))
 
@@ -323,7 +361,7 @@ class LDNetModel:
     # TODO: check from here on
  
     def save(self, model_dir=None):
-        model_dir = Path(model_dir) if model_dir is not None else MODEL_DIR
+        model_dir = Path(model_dir)
         model_dir.mkdir(parents=True, exist_ok=True)
         # Keras 3 native format requires the .keras extension.
         self.NNdyn.save(str(model_dir / 'NNdyn.keras'))
@@ -331,7 +369,7 @@ class LDNetModel:
  
     @classmethod
     def load(cls, problem, normalization, num_latent_states, dt, dt_base, model_dir=None):
-        model_dir = Path(model_dir) if model_dir is not None else MODEL_DIR
+        model_dir = Path(model_dir)
         model = cls(problem, normalization, num_latent_states, dt, dt_base)
         model.NNdyn = tf.keras.models.load_model(str(model_dir / 'NNdyn.keras'))
         model.NNrec = tf.keras.models.load_model(str(model_dir / 'NNrec.keras'))
