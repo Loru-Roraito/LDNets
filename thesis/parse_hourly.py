@@ -122,6 +122,8 @@ def split_signals(hs, ts, dirs, wave_dates, tides, tide_dates, dt):
     t_qualities = []
     dir_qualities = []
     tide_qualities = []
+    old_height = 0
+    old_change = 0
 
     a = 0
     while time < delta:
@@ -263,8 +265,13 @@ def split_signals(hs, ts, dirs, wave_dates, tides, tide_dates, dt):
                     height = output[a - y][b - k][x*len(xaxis)//common.n_points]
                     previous = output[a - l][b - m][x*len(xaxis)//common.n_points]
                     change = height - previous
-                    signal[-1].append(height)
-                    signal[-1].append(change)
+                    if output_real[a][b]:
+                        signal[-1].append(height)
+                        old_height = height
+                        old_change = change
+                    else:
+                        signal[-1].append(old_height)
+                        signal[-1].append(old_change)
 
             b += 1
 
@@ -329,41 +336,6 @@ print(dataset["x"].shape)
 print(dataset["t"].shape)
 print(dataset["output"].shape)
 print(dataset["sign"].shape)
-
-"""
-print(np.min(dataset["sign"][:, :, 0]))
-print(np.max(dataset["sign"][:, :, 0]))
-print(np.min(dataset["sign"][:, :, 1]))
-print(np.max(dataset["sign"][:, :, 1]))
-print(np.min(dataset["sign"][:, :, 2]))
-print(np.max(dataset["sign"][:, :, 2]))
-print(np.min(dataset["sign"][:, :, 3]))
-print(np.max(dataset["sign"][:, :, 3]))
-print(np.min(dataset["sign"][:, :, 4]))
-print(np.max(dataset["sign"][:, :, 4]))
-print(np.min(dataset["sign"][:, :, 5]))
-print(np.max(dataset["sign"][:, :, 5]))
-print(np.min(dataset["sign"][:, :, 6]))
-print(np.max(dataset["sign"][:, :, 6]))
-print(np.min(dataset["sign"][:, :, 7]))
-print(np.max(dataset["sign"][:, :, 7]))
-print(np.min(dataset["sign"][:, :, 8]))
-print(np.max(dataset["sign"][:, :, 8]))
-print(np.min(dataset["sign"][:, :, 9]))
-print(np.max(dataset["sign"][:, :, 9]))
-print(np.min(dataset["sign"][:, :, 10]))
-print(np.max(dataset["sign"][:, :, 10]))
-print(np.min(dataset["sign"][:, :, 11]))
-print(np.max(dataset["sign"][:, :, 11]))
-print(np.min(dataset["sign"][:, :, 12]))
-print(np.max(dataset["sign"][:, :, 12]))
-print(np.min(dataset["sign"][:, :, 13]))
-print(np.max(dataset["sign"][:, :, 13]))
-print(np.min(dataset["sign"][:, :, 14]))
-print(np.max(dataset["sign"][:, :, 14]))
-print(np.min(dataset["sign"][:, :, 15]))
-print(np.max(dataset["sign"][:, :, 15]))
-"""
 
 np.save("thesis/data/data_hourly.npy", dataset)
 print("data converted to npy")

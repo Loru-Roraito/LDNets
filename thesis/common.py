@@ -124,10 +124,6 @@ def load_datasets():
     return dataset_train, dataset_valid, dataset_tests
 
 def load_datasets_hourly():
-    raw_dataset = np.load(DATA_PATH_HOURLY, allow_pickle=True).item()
-    num_input_signals = raw_dataset['sign'].shape[2]
-    hourly_problem, hourly_normalization = configuration_for_signal_count(num_input_signals)
-
     a = 0
     b = 120
     x = 100
@@ -145,9 +141,9 @@ def load_datasets_hourly():
     test_indices = np.concatenate([remaining_1, remaining_2, np.arange(200, 240)])
     dataset_tests = utils.MY_create_dataset(DATA_PATH_HOURLY, test_indices)
 
-    utils.process_dataset(dataset_train, hourly_problem, hourly_normalization)
-    utils.process_dataset(dataset_valid, hourly_problem, hourly_normalization)
-    utils.process_dataset(dataset_tests, hourly_problem, hourly_normalization)
+    utils.process_dataset(dataset_train, problem, normalization)
+    utils.process_dataset(dataset_valid, problem, normalization)
+    utils.process_dataset(dataset_tests, problem, normalization)
 
     dataset_train['sample_indices'] = train_indices
     dataset_valid['sample_indices'] = valid_indices
@@ -155,41 +151,22 @@ def load_datasets_hourly():
 
     return dataset_train, dataset_valid, dataset_tests
 
-def configuration_for_signal_count(num_input_signals):
-    num_feedback_signals = num_input_signals - 16
-    if num_feedback_signals < 0 or num_feedback_signals % 2 != 0:
-        raise ValueError(
-            'Expected 16 aggregate input signals plus height/difference pairs; '
-            f'got {num_input_signals} signals.'
-        )
-
-    configured_num_points = num_feedback_signals // 2
-    configured_problem = deepcopy(problem)
-    configured_problem['input_signals'] = configured_problem['input_signals'][
-        :num_input_signals
-    ]
-    configured_normalization = deepcopy(normalization)
-    configured_normalization['input_signals'] = {
-        signal['name']: configured_normalization['input_signals'][signal['name']]
-        for signal in configured_problem['input_signals']
-    }
-    configured_normalization['input_signals'].update({
-        f'height_{point}': normalization['input_signals'][f'height_{point}']
-        for point in range(configured_num_points)
-    })
-    configured_normalization['input_signals'].update({
-        f'difference_{point}': normalization['input_signals'][f'difference_{point}']
-        for point in range(configured_num_points)
-    })
-    return configured_problem, configured_normalization
-
 class LDNetModel:
-    def __init__(self, problem, normalization, num_latent_states, dt, dt_base):
+    def __init__(
+        self,
+        problem,
+        normalization,
+        num_latent_states,
+        dt,
+        dt_base,
+        reconstruction_batch_size=4,
+    ):
         self.problem = problem
         self.normalization = normalization
         self.num_latent_states = num_latent_states
         self.dt = dt
         self.dt_base = dt_base
+        self.reconstruction_batch_size = reconstruction_batch_size
 
         input_shape_dyn = (num_latent_states + len(problem['input_parameters']) + len(problem['input_signals']),)
         self.NNdyn = tf.keras.Sequential([
@@ -230,11 +207,28 @@ class LDNetModel:
         return tf.transpose(state_history.stack(), perm=(1, 0, 2))
  
     def reconstruct_output(self, dataset, states):
-        states_expanded = tf.broadcast_to(tf.expand_dims(states, axis=2),
-            [dataset['num_samples'], dataset['num_times'], dataset['num_points'], self.num_latent_states])
-        inp_signals_expanded = tf.broadcast_to(tf.expand_dims(dataset['inp_signals'], axis=2),
-            [dataset['num_samples'], dataset['num_times'], dataset['num_points'], len(self.problem['input_signals'])])
-        output = self.NNrec(tf.concat([states_expanded, inp_signals_expanded, dataset['points_full']], axis=3))
+        outputs = []
+        for start in range(0, dataset['num_samples'], self.reconstruction_batch_size):
+            stop = min(start + self.reconstruction_batch_size, dataset['num_samples'])
+            states_batch = states[start:stop]
+            signals_batch = dataset['inp_signals'][start:stop]
+            points_batch = dataset['points_full'][start:stop]
+
+            states_expanded = tf.broadcast_to(
+                tf.expand_dims(states_batch, axis=2),
+                [stop - start, dataset['num_times'], dataset['num_points'], self.num_latent_states],
+            )
+            inp_signals_expanded = tf.broadcast_to(
+                tf.expand_dims(signals_batch, axis=2),
+                [stop - start, dataset['num_times'], dataset['num_points'], len(self.problem['input_signals'])],
+            )
+            outputs.append(self.NNrec(tf.concat([
+                states_expanded,
+                inp_signals_expanded,
+                points_batch,
+            ], axis=3)))
+
+        output = tf.concat(outputs, axis=0)
         # nonlinear transformation to compress long tails
         alpha = 0.05
         output = (output ** 3 + alpha * output) / (1 + alpha)
@@ -257,104 +251,8 @@ class LDNetModel:
         alpha = 0.05
         output = (output ** 3 + alpha * output) / (1 + alpha)
         return output[:, 0, :, :]
-
-    ## TODO: check
-    def _autoregressive_output(self, dataset):
-        signals = dataset['inp_signals']
-        state = tf.zeros(
-            (dataset['num_samples'], self.num_latent_states),
-            dtype=tf.float64,
-        )
-        outputs = tf.TensorArray(
-            tf.float64,
-            size=dataset['num_times'],
-            element_shape=(
-                None,
-                dataset['num_points'],
-                len(self.problem['output_fields']),
-            ),
-        )
-        num_feedback_points = (
-            len(self.problem['input_signals']) - 16
-        ) // 2
-        feedback_indices = tf.constant(
-            np.arange(num_feedback_points) * dataset['num_points'] // num_feedback_points,
-            dtype=tf.int32,
-        )
-
-        output_min = tf.constant(
-            self.normalization['output_fields']['y']['min'], tf.float64
-        )
-        output_max = tf.constant(
-            self.normalization['output_fields']['y']['max'], tf.float64
-        )
-        difference_min = tf.constant(
-            self.normalization['input_signals']['difference_0']['min'], tf.float64
-        )
-        difference_max = tf.constant(
-            self.normalization['input_signals']['difference_0']['max'], tf.float64
-        )
-        last_valid_height = signals[:, 0, 16::2]
-        previous_valid_height = last_valid_height
-
-        for i in range(dataset['num_times']):
-            timestep_signals = signals[:, i, :]
-            if i > 0:
-                height = last_valid_height
-                previous_height = previous_valid_height
-                height_physical = 0.5 * (
-                    output_min + output_max
-                    + (output_max - output_min) * height
-                )
-                previous_height_physical = 0.5 * (
-                    output_min + output_max
-                    + (output_max - output_min) * previous_height
-                )
-                difference = height_physical - previous_height_physical
-                difference = (
-                    2 * difference - difference_min - difference_max
-                ) / (difference_max - difference_min)
-
-                for point in range(num_feedback_points):
-                    signal_index = 16 + 2 * point
-                    timestep_signals = tf.concat([
-                        timestep_signals[:, :signal_index],
-                        height[:, point:point + 1],
-                        difference[:, point:point + 1],
-                        timestep_signals[:, signal_index + 2:],
-                    ], axis=1)
-
-            state = state + self.dt / self.normalization['time']['time_constant'] * self.NNdyn(
-                tf.concat([state, timestep_signals], axis=-1)
-            )
-            output = self._reconstruct_timestep(dataset, state, timestep_signals)
-            outputs = outputs.write(i, output)
-
-            real_height = tf.gather(
-                dataset['out_fields'][:, i, :, 0],
-                feedback_indices,
-                axis=1,
-            )
-            real_available = tf.expand_dims(
-                dataset['output_real'][:, i],
-                axis=1,
-            )
-            previous_valid_height = tf.where(
-                real_available,
-                last_valid_height,
-                previous_valid_height,
-            )
-            last_valid_height = tf.where(
-                real_available,
-                real_height,
-                last_valid_height,
-            )
-
-        return tf.transpose(outputs.stack(), perm=(1, 0, 2, 3))
-
-    def __call__(self, dataset, autoregressive=False):
-        if autoregressive:
-            return self._autoregressive_output(dataset)
+    
+    def __call__(self, dataset):
         states = self.evolve_dynamics(dataset)
         return self.reconstruct_output(dataset, states)
     
@@ -368,9 +266,25 @@ class LDNetModel:
         self.NNrec.save(str(model_dir / 'NNrec.keras'))
  
     @classmethod
-    def load(cls, problem, normalization, num_latent_states, dt, dt_base, model_dir=None):
+    def load(
+        cls,
+        problem,
+        normalization,
+        num_latent_states,
+        dt,
+        dt_base,
+        model_dir=None,
+        reconstruction_batch_size=4,
+    ):
         model_dir = Path(model_dir)
-        model = cls(problem, normalization, num_latent_states, dt, dt_base)
+        model = cls(
+            problem,
+            normalization,
+            num_latent_states,
+            dt,
+            dt_base,
+            reconstruction_batch_size,
+        )
         model.NNdyn = tf.keras.models.load_model(str(model_dir / 'NNdyn.keras'))
         model.NNrec = tf.keras.models.load_model(str(model_dir / 'NNrec.keras'))
         return model
@@ -386,10 +300,9 @@ def make_loss_fn(
     dataset,
     target_velocity,
     target_direction,
-    autoregressive=False,
 ):
     def loss_fn():
-        velocity = model(dataset, autoregressive=autoregressive)
+        velocity = model(dataset)
         MSE_velocity = tf.reduce_mean(tf.square(velocity - target_velocity))
         direction = get_direction(velocity)
         MSE_direction = tf.reduce_mean(tf.square(direction - target_direction))

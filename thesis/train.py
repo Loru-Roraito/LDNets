@@ -13,20 +13,17 @@ model.summary()
 
 target_direction_train = common.get_direction(dataset_train['out_fields'])
 target_direction_valid = common.get_direction(dataset_valid['out_fields'])
-autoregressive_training = True
 loss_train = common.make_loss_fn(
     model,
     dataset_train,
     dataset_train['out_fields'],
-    target_direction_train,
-    autoregressive=autoregressive_training,
+    target_direction_train
 )
 loss_valid = common.make_loss_fn(
     model,
     dataset_valid,
     dataset_valid['out_fields'],
-    target_direction_valid,
-    autoregressive=autoregressive_training,
+    target_direction_valid
 )
 
 opt = optimization.OptimizationProblem(model.trainable_variables, loss_train, loss_valid)

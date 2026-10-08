@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from datetime import timedelta
 
 import common
-import numpy as np
+import numpy as np  
 from network import utils
 from scipy import stats
 from matplotlib.animation import FuncAnimation
@@ -21,13 +21,11 @@ reconstruction = True
 if hourly:
     data_path = common.DATA_PATH_HOURLY
     dataset_train, dataset_valid, dataset_tests = common.load_datasets_hourly()
-    num_input_signals = np.load(data_path, allow_pickle=True).item()['sign'].shape[2]
-    problem, normalization = common.configuration_for_signal_count(num_input_signals)
 else:
     data_path = common.DATA_PATH
     dataset_train, dataset_valid, dataset_tests = common.load_datasets()
-    problem = common.problem
-    normalization = common.normalization
+problem = common.problem
+normalization = common.normalization
 
 model = common.LDNetModel.load(problem, normalization, common.num_latent_states, common.dt, common.dt_base, common.MODEL_DIR)
 
@@ -47,7 +45,7 @@ axs.legend()
 plt.show()
 
 # %%
-out_fields = model(dataset_tests, autoregressive=True)
+out_fields = model(dataset_tests)
  
 # Since the LDNet works with normalized data, we map back the outputs into the original ranges.
 out_fields_FOM = utils.denormalize_output(dataset_tests['out_fields'], common.problem, common.normalization).numpy()
@@ -69,7 +67,7 @@ sample_ids = raw_sample_ids[restore_order]
 dataset_all = utils.MY_create_dataset(data_path, all_indices[restore_order])
 utils.process_dataset(dataset_all, problem, normalization)
 
-out_fields = model(dataset_all, autoregressive=True)
+out_fields = model(dataset_all)
 
 out_fields_FOM = utils.denormalize_output(
     dataset_all["out_fields"], problem, normalization
