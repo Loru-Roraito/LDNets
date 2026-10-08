@@ -80,7 +80,7 @@ normalization = {
             for point in range(n_points)
         },
         **{
-            f'difference_{point}': {'min': -50, 'max': 50}
+            f'difference_{point}': {'min': -2, 'max': 2}
             for point in range(n_points)
         },
     },
