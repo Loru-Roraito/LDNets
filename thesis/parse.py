@@ -261,10 +261,7 @@ def split_signals(hs, ts, dirs, wave_dates, tides, tide_dates, dt):
 
                 if a < len(output):
                     height = output[a - y][b - k][x*len(xaxis)//common.n_points]
-                    previous = output[a - l][b - m][x*len(xaxis)//common.n_points]
-                    change = (height - previous) / 24
                     signal[-1].append(height)
-                    signal[-1].append(change)
 
             b += 1
 

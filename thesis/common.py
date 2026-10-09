@@ -44,9 +44,8 @@ problem = {
         { "name": "tidemin" },
         { "name": "tidedev" },
         *[
-            {"name": f"{signal}_{point}"}
+            {"name": f"height_{point}"}
             for point in range(n_points)
-            for signal in ("height", "difference")
         ],
     ],
     "output_fields": [
@@ -82,10 +81,6 @@ normalization = {
 
         **{
             f'height_{point}': {'min': -700, 'max': 900}
-            for point in range(n_points)
-        },
-        **{
-            f'difference_{point}': {'min': -50, 'max': 50}
             for point in range(n_points)
         },
     },
