@@ -21,16 +21,27 @@ reconstruction = True
 if hourly:
     data_path = common.DATA_PATH_HOURLY
     dataset_train, dataset_valid, dataset_tests = common.load_datasets_hourly()
+    model_dt = common.dt_hourly
 else:
     data_path = common.DATA_PATH
     dataset_train, dataset_valid, dataset_tests = common.load_datasets()
+    model_dt = common.dt
 problem = common.problem
 normalization = common.normalization
+model_dir = common.MODEL_DIR
+history_path = common.HISTORY_PATH
 
-model = common.LDNetModel.load(problem, normalization, common.num_latent_states, common.dt, common.dt_base, common.MODEL_DIR)
+model = common.LDNetModel.load(
+    problem,
+    normalization,
+    common.num_latent_states,
+    model_dt,
+    common.dt_base,
+    model_dir,
+)
 
 # %%
-history = np.load(common.HISTORY_PATH)
+history = np.load(history_path)
 iterations_history = history['iterations_history']
 loss_train_history = history['loss_train_history']
 loss_valid_history = history['loss_valid_history']

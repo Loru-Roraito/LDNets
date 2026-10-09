@@ -1,4 +1,4 @@
-from copy import deepcopy
+import os
 from pathlib import Path
 from network import utils
 import numpy as np
@@ -7,8 +7,13 @@ from datetime import datetime
 
 tf.keras.backend.set_floatx('float64')
 
+SEED = int(os.environ.get("LDNETS_SEED", "42"))
+tf.keras.utils.set_random_seed(SEED)
+tf.config.experimental.enable_op_determinism()
+
 start_date = datetime(1997, 4, 1)
 dt = 24
+dt_hourly = 1
 dt_base = 24
 num_latent_states = 5
 n_points = 10
@@ -80,7 +85,7 @@ normalization = {
             for point in range(n_points)
         },
         **{
-            f'difference_{point}': {'min': -2, 'max': 2}
+            f'difference_{point}': {'min': -50, 'max': 50}
             for point in range(n_points)
         },
     },
@@ -94,19 +99,33 @@ DATA_PATH = REPO_ROOT / 'thesis' / 'data' /'data.npy'
 MODEL_DIR = REPO_ROOT / 'thesis' / 'model' / 'trained_model'
 HISTORY_PATH = REPO_ROOT / 'thesis' / 'model' / 'training_history.npz'
 DATA_PATH_HOURLY = REPO_ROOT / 'thesis' / 'data' /'data_hourly.npy'
+MODEL_DIR_HOURLY = REPO_ROOT / 'thesis' / 'model' / 'trained_model_hourly'
+HISTORY_PATH_HOURLY = REPO_ROOT / 'thesis' / 'model' / 'training_history_hourly.npz'
+
+normalization_hourly = {
+    **normalization,
+    'input_signals': {
+        **normalization['input_signals'],
+        **{
+            f'difference_{point}': {'min': -10, 'max': 10}
+            for point in range(n_points)
+        },
+    },
+}
 
 def load_datasets():
+    rng = np.random.default_rng(SEED)
     a = 0
     b = 120
     x = 100
-    train_indices = np.sort(np.random.choice(np.arange(a, b), size=x, replace=False))
+    train_indices = np.sort(rng.choice(np.arange(a, b), size=x, replace=False))
     remaining_1 = np.setdiff1d(np.arange(a, b), train_indices)
     dataset_train = utils.MY_create_dataset(DATA_PATH, train_indices)
     
     a = 120
     b = 150
     x = 30
-    valid_indices = np.sort(np.random.choice(np.arange(a, b), size=x, replace=False))
+    valid_indices = np.sort(rng.choice(np.arange(a, b), size=x, replace=False))
     dataset_valid = utils.MY_create_dataset(DATA_PATH, valid_indices)
     remaining_2 = np.setdiff1d(np.arange(a, b), valid_indices)
 
@@ -124,26 +143,27 @@ def load_datasets():
     return dataset_train, dataset_valid, dataset_tests
 
 def load_datasets_hourly():
+    rng = np.random.default_rng(SEED)
     a = 0
     b = 120
     x = 100
-    train_indices = np.sort(np.random.choice(np.arange(a, b), size=x, replace=False))
+    train_indices = np.sort(rng.choice(np.arange(a, b), size=x, replace=False))
     remaining_1 = np.setdiff1d(np.arange(a, b), train_indices)
     dataset_train = utils.MY_create_dataset(DATA_PATH_HOURLY, train_indices)
     
     a = 120
     b = 150
     x = 30
-    valid_indices = np.sort(np.random.choice(np.arange(a, b), size=x, replace=False))
+    valid_indices = np.sort(rng.choice(np.arange(a, b), size=x, replace=False))
     dataset_valid = utils.MY_create_dataset(DATA_PATH_HOURLY, valid_indices)
     remaining_2 = np.setdiff1d(np.arange(a, b), valid_indices)
 
     test_indices = np.concatenate([remaining_1, remaining_2, np.arange(200, 240)])
     dataset_tests = utils.MY_create_dataset(DATA_PATH_HOURLY, test_indices)
 
-    utils.process_dataset(dataset_train, problem, normalization)
-    utils.process_dataset(dataset_valid, problem, normalization)
-    utils.process_dataset(dataset_tests, problem, normalization)
+    utils.process_dataset(dataset_train, problem, normalization_hourly)
+    utils.process_dataset(dataset_valid, problem, normalization_hourly)
+    utils.process_dataset(dataset_tests, problem, normalization_hourly)
 
     dataset_train['sample_indices'] = train_indices
     dataset_valid['sample_indices'] = valid_indices

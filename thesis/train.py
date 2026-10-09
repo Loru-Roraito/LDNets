@@ -7,8 +7,12 @@ import tensorflow as tf
 import numpy as np
 
 dataset_train, dataset_valid, dataset_tests = common.load_datasets()
+normalization = common.normalization
+model_dt = common.dt
+model_dir = common.MODEL_DIR
+history_path = common.HISTORY_PATH
 
-model = common.LDNetModel(common.problem, common.normalization, common.num_latent_states, common.dt, common.dt_base)
+model = common.LDNetModel(common.problem, normalization, common.num_latent_states, model_dt, common.dt_base)
 model.summary()
 
 target_direction_train = common.get_direction(dataset_train['out_fields'])
@@ -36,16 +40,16 @@ opt.optimize_keras(num_epochs_Adam, tf.keras.optimizers.Adam(learning_rate=1e-4)
 print('training (BFGS)...')
 opt.optimize_BFGS(num_epochs_BFGS)
 
-model.save(common.MODEL_DIR)
+model.save(model_dir)
 
 # TODO: check
 np.savez(
-    common.HISTORY_PATH,
+history_path,
     iterations_history=np.array(opt.iterations_history),
     loss_train_history=np.array([float(v) for v in opt.loss_train_history]),
     loss_valid_history=np.array([float(v) for v in opt.loss_valid_history]),
     num_epochs_Adam=num_epochs_Adam
 )
 
-print(f'Model saved to {common.MODEL_DIR}')
-print(f'History saved to {common.HISTORY_PATH}')
+print(f'Model saved to {model_dir}')
+print(f'History saved to {history_path}')
