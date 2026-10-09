@@ -234,6 +234,7 @@ def split_signals(hs, ts, dirs, wave_dates, tides, tide_dates, dt):
 
             signal.append([hmean, hmax, hmin, hdev, tmean, tmax, tmin, tdev, dirmean, dirmax, dirmin, dirdev, tidemean, tidemax, tidemin, tidedev])  
 
+            old_change = 0
             for x in range(common.n_points):
                 if a < len(output):
                     if b > 0:
@@ -253,7 +254,11 @@ def split_signals(hs, ts, dirs, wave_dates, tides, tide_dates, dt):
 
                     change = height - previous
                     signal[-1].append(height)
-                    signal[-1].append(change)
+                    if output_real[a][b]:
+                        signal[-1].append(change)
+                        old_change = change
+                    else:
+                        signal[-1].append(old_change)
 
             b += 1
 
