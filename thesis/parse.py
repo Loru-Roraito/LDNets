@@ -236,33 +236,15 @@ def split_signals(hs, ts, dirs, wave_dates, tides, tide_dates, dt):
             signal.append([hmean, hmax, hmin, hdev, tmean, tmax, tmin, tdev, dirmean, dirmax, dirmin, dirdev, tidemean, tidemax, tidemin, tidedev])  
 
             for x in range(common.n_points):
-                if b > 0:
-                    y = 0
-                    k = 1
-                    if b > 1:
-                        l = 0
-                        m = 2
-                    elif a > 0:
-                        l = 1
-                        m = 0
-                    else:
-                        l = 0
-                        m = 0
-                elif a > 0:
-                    y = 1
-                    k = 0
-                    l = 1
-                    m = 1
-                else:
-                    y = 0
-                    k = 0
-                    l = 0
-                    m = 0
-
                 if a < len(output):
-                    height = output[a - y][b - k][x*len(xaxis)//common.n_points]
-                    signal[-1].append(height)
+                    if b > 0:
+                        height = output[a][b - 1][x * len(xaxis) // common.n_points]
+                    elif a > 0:
+                        height = output[a - 1][-1][x * len(xaxis) // common.n_points]
+                    else:
+                        height = output[a][0][x * len(xaxis) // common.n_points]
 
+                    signal[-1].append(height)
             b += 1
 
         signals.append(signal)
