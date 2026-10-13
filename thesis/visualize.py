@@ -87,8 +87,6 @@ out_fields_FOM = utils.denormalize_output(
 out_fields_ROM = utils.denormalize_output(
     out_fields, problem, normalization
 ).numpy()
-output_real = dataset_all["output_real"].numpy()
-
 sample_dates = raw_dataset["sample_dates"][restore_order]
 quality = raw_dataset["quality"][restore_order]
 quality *= np.array([24, 2, 2, 2, 1])
@@ -170,8 +168,7 @@ pause_button = Button(button_ax, "Pause")
 def draw_frame(frame):
     sample_idx, day_idx = divmod(int(frame), num_days)
 
-    if output_real[sample_idx, day_idx]:
-        fom.set_ydata(out_fields_FOM[sample_idx, day_idx, :, 0])
+    fom.set_ydata(out_fields_FOM[sample_idx, day_idx, :, 0])
 
     if reconstruction:
         rom_frame = out_fields_ROM[sample_idx, day_idx, :, 0]

@@ -16,7 +16,7 @@ dt = 24
 dt_hourly = 1
 dt_base = 24
 num_latent_states = 5
-n_points = 10
+n_points = 20
 
 problem = {
     "space": {
