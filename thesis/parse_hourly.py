@@ -15,6 +15,7 @@ test_threshold = 0.5
 start_date = datetime(1997, 4, 1)
 end_date = datetime(2019, 1, 31 )
 delta = (end_date - start_date).total_seconds() / 3600
+hour_n = 8
 
 def parse_xaxis(value):
     return float(value.rstrip("m"))
@@ -82,7 +83,7 @@ def split_values(values, dates, dt):
 
     while dates[i] < delta:
         sample_dates.append(time)
-        quality = dt
+        quality = dt/hour_n
         samples = []
         real_samples = []
         initial_time = time
@@ -97,7 +98,7 @@ def split_values(values, dates, dt):
                 quality -= 1
                 samples.append((values[i - 1] + (values[i] - values[i - 1]) * ((time - dates[i - 1]) / (dates[i] - dates[i - 1]))))
                 real_samples.append(False)
-            time += 1
+            time += hour_n
 
         output.append(samples)
         output_real.append(real_samples)
@@ -139,7 +140,7 @@ def split_signals(hs, ts, dirs, wave_dates, tides, tide_dates, dt):
             t = []
             dir = []
             tide = []
-            while subtime < 1:
+            while subtime < hour_n:
                 if i < len(wave_dates) and wave_dates[i] == time:
                     if not np.isnan(hs[i]):
                         h += [hs[i] ** 2]
@@ -156,9 +157,9 @@ def split_signals(hs, ts, dirs, wave_dates, tides, tide_dates, dt):
                     else:
                         t_quality -= 1
                         if current_time > 0:
-                            t += [signal[-1][4]]
+                            t += [signal[-1][2]]
                         elif time > 0 and subtime == 0:
-                            t += [signals[-1][-1][4]]
+                            t += [signals[-1][-1][2]]
                         else:
                             t += [6.9]
                     if not np.isnan(dirs[i]):
@@ -166,9 +167,9 @@ def split_signals(hs, ts, dirs, wave_dates, tides, tide_dates, dt):
                     else:
                         dir_quality -= 1
                         if current_time > 0:
-                            dir += [signal[-1][8]]
+                            dir += [signal[-1][4]]
                         elif time > 0 and subtime == 0:
-                            dir += [signals[-1][-1][8]]
+                            dir += [signals[-1][-1][4]]
                         else:
                             dir += [6.81]
                     i += 1
@@ -178,12 +179,12 @@ def split_signals(hs, ts, dirs, wave_dates, tides, tide_dates, dt):
                     dir_quality -= 1
                     if current_time > 0:
                         h += [signal[-1][0]]
-                        t += [signal[-1][4]]
-                        dir += [signal[-1][8]]
+                        t += [signal[-1][2]]
+                        dir += [signal[-1][4]]
                     elif time > 0 and subtime == 0:
                         h += [signals[-1][-1][0]]
-                        t += [signals[-1][-1][4]]
-                        dir += [signals[-1][-1][8]]
+                        t += [signals[-1][-1][2]]
+                        dir += [signals[-1][-1][4]]
                     else:
                         h += [0.78 ** 2]
                         t += [6.9]
@@ -194,46 +195,39 @@ def split_signals(hs, ts, dirs, wave_dates, tides, tide_dates, dt):
                     else:
                         tide_quality -= 1
                         if current_time > 0:
-                            tide += [signal[-1][12]]
+                            tide += [signal[-1][6]]
                         elif time > 0 and subtime == 0:
-                            tide += [signals[-1][-1][12]]
+                            tide += [signals[-1][-1][6]]
                         else:
                             tide += [1.72]
                     j += 1
                 else:
                     tide_quality -= 1
                     if current_time > 0:
-                        tide += [signal[-1][12]]
+                        tide += [signal[-1][6]]
                     elif time > 0 and subtime == 0:
-                        tide += [signals[-1][-1][12]]
+                        tide += [signals[-1][-1][6]]
                     else:
                         tide += [1.72]
                 subtime += 1
                 time += 1
 
-            current_time += 1
+            current_time += hour_n
 
             hmean = np.mean(h)
             hmax = np.max(h)
-            hmin = np.min(h)
-            hdev = np.std(h)
+            hmax_index = int(np.argmax(h))
 
             tmean = np.mean(t)
-            tmax = np.max(t)
-            tmin = np.min(t)
-            tdev = np.std(t)
+            tmax = t[hmax_index]
 
             dirmean = np.mean(dir)
-            dirmax = np.max(dir)
-            dirmin = np.min(dir)
-            dirdev = np.std(dir)
+            dirmax = dir[hmax_index]
 
             tidemean = np.mean(tide)
-            tidemax = np.max(tide)
-            tidemin = np.min(tide)
-            tidedev = np.std(tide)
+            tidemax = tide[hmax_index]
 
-            signal.append([hmean, hmax, hmin, hdev, tmean, tmax, tmin, tdev, dirmean, dirmax, dirmin, dirdev, tidemean, tidemax, tidemin, tidedev])  
+            signal.append([hmean, hmax, tmean, tmax, dirmean, dirmax, tidemean, tidemax])  
 
             for x in range(common.n_points):
                 c = a
@@ -312,7 +306,7 @@ dataset = {
     "sample_ids": sample_ids,
     "sample_dates": sample_dates,
     "quality": quality,
-    "t": np.arange(dt * 24, dtype=np.float64)
+    "t": np.arange(dt * 24 / hour_n, dtype=np.float64) * hour_n
 }
 
 print(dataset["x"].shape)

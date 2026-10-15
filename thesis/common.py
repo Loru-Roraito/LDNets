@@ -15,8 +15,8 @@ start_date = datetime(1997, 4, 1)
 dt = 24
 dt_hourly = 1
 dt_base = 24
-num_latent_states = 10
-n_points = 20
+num_latent_states = 5
+n_points = 10
 
 problem = {
     "space": {
@@ -26,23 +26,15 @@ problem = {
     "input_signals": [
         { "name": "hmean" },
         { "name": "hmax" },
-        { "name": "hmin" },
-        { "name": "hdev" },
 
         { "name": "tmean" },
         { "name": "tmax" },
-        { "name": "tmin" },
-        { "name": "tdev" },
 
         { "name": "dirmean" },
         { "name": "dirmax" },
-        { "name": "dirmin" },
-        { "name": "dirdev" },
 
         { "name": "tidemean" },
         { "name": "tidemax" },
-        { "name": "tidemin" },
-        { "name": "tidedev" },
         *[
             {"name": f"height_{point}"}
             for point in range(n_points)
@@ -61,23 +53,15 @@ normalization = {
     'input_signals': {
         'hmean': { 'min': 0.2, 'max': 22.6 },
         'hmax': { 'min': 0.2, 'max': 63 },
-        'hmin': { 'min': 0, 'max': 16.7 },
-        'hdev': { 'min': 0, 'max': 16.5 },
 
         'tmean': { 'min': 5.1, 'max': 14.7 },
         'tmax': { 'min': 5.5, 'max': 18.1 },
-        'tmin': { 'min': 2.9, 'max': 14.2 },
-        'tdev': { 'min': 0, 'max': 4.5 },
 
         'dirmean': { 'min': 6.8, 'max': 133 },
         'dirmax': { 'min': 6.8, 'max': 168 },
-        'dirmin': { 'min': 6.8, 'max': 124 },
-        'dirdev': { 'min': 0, 'max': 60 },
 
         'tidemean': { 'min': 1.4, 'max': 2.6 },
         'tidemax': { 'min': 1.6, 'max': 3.14 },
-        'tidemin': { 'min': 0.56, 'max': 1.93 },
-        'tidedev': { 'min': 0, 'max': 0.54},
 
         **{
             f'height_{point}': {'min': -700, 'max': 900}
@@ -111,15 +95,15 @@ normalization_hourly = {
 def load_datasets():
     rng = np.random.default_rng(SEED)
     a = 0
-    b = 120
+    b = 110
     x = 100
     train_indices = np.sort(rng.choice(np.arange(a, b), size=x, replace=False))
     remaining_1 = np.setdiff1d(np.arange(a, b), train_indices)
     dataset_train = utils.MY_create_dataset(DATA_PATH, train_indices)
     
-    a = 120
+    a = 110
     b = 150
-    x = 30
+    x = 40
     valid_indices = np.sort(rng.choice(np.arange(a, b), size=x, replace=False))
     dataset_valid = utils.MY_create_dataset(DATA_PATH, valid_indices)
     remaining_2 = np.setdiff1d(np.arange(a, b), valid_indices)
