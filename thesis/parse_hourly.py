@@ -16,6 +16,8 @@ start_date = datetime(1997, 4, 1)
 end_date = datetime(2019, 1, 31 )
 delta = (end_date - start_date).total_seconds() / 3600
 hour_n = 8
+average_n = 7
+filename = "data_hourly"
 
 def parse_xaxis(value):
     return float(value.rstrip("m"))
@@ -124,7 +126,7 @@ def split_signals(hs, ts, dirs, wave_dates, tides, tide_dates, dt):
     dir_qualities = []
     tide_qualities = []
     a = 0
-    previous_heights = [[0 for _ in range(common.n_points)] for _ in range(4)]
+    previous_heights = [[0 for _ in range(common.n_points)] for _ in range(average_n)]
     while time < delta:
         current_time = 0
         signal = []
@@ -245,16 +247,13 @@ def split_signals(hs, ts, dirs, wave_dates, tides, tide_dates, dt):
                         height = output[c][d][x * len(xaxis) // common.n_points]
 
                     if previous_heights[0][x] == 0:
-                        previous_heights[0][x] = height
-                        previous_heights[1][x] = height
-                        previous_heights[2][x] = height
-                        previous_heights[3][x] = height
+                        for l in range(average_n):
+                            previous_heights[l][x] = height
                     elif output_real[c][d]:
-                        previous_heights[0][x] = previous_heights[1][x]
-                        previous_heights[1][x] = previous_heights[2][x]
-                        previous_heights[2][x] = previous_heights[3][x]
-                        previous_heights[3][x] = height
-                    signal[-1].append((previous_heights[0][x] + previous_heights[1][x] + previous_heights[2][x] + previous_heights[3][x]) / 4)
+                        for l in range(average_n - 1):
+                            previous_heights[l][x] = previous_heights[l + 1][x]
+                        previous_heights[-1][x] = height
+                    signal[-1].append(np.mean(previous_heights, axis=0)[x])
                     
             b += 1
 
@@ -320,5 +319,5 @@ print(dataset["t"].shape)
 print(dataset["output"].shape)
 print(dataset["sign"].shape)
 
-np.save("thesis/data/data_hourly.npy", dataset)
+np.save(f"thesis/data/{filename}.npy", dataset)
 print("data converted to npy")
