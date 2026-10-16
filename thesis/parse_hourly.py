@@ -249,7 +249,7 @@ def split_signals(hs, ts, dirs, wave_dates, tides, tide_dates, dt):
                     if previous_heights[0][x] == 0:
                         for l in range(average_n):
                             previous_heights[l][x] = height
-                    elif output_real[c][d]:
+                    elif current_time % 24 == 0:
                         for l in range(average_n - 1):
                             previous_heights[l][x] = previous_heights[l + 1][x]
                         previous_heights[-1][x] = height

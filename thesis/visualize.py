@@ -14,7 +14,7 @@ from scipy import stats
 from matplotlib.animation import FuncAnimation
 from matplotlib.widgets import Slider, Button
 
-hourly = False
+hourly = True
 reconstruction = True
 
 # %%
