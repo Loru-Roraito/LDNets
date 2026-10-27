@@ -65,8 +65,8 @@ def create_feat(value):
 
     
 feats = {
-    "hmean": create_feat(hs),
-    "hmax": findPeak(hs),
+    "hmean": create_feat(h2s),
+    "hmax": findPeak(h2s),
     "tmean": create_feat(ts),
     "tmax": findPeak(ts),
     "dirmean": create_feat(dirs),
@@ -109,7 +109,7 @@ tide_hours = n_tides.astype(int)
 
 missing_waves = np.clip(1 - n_waves / EXPECTED_WAVES, 0, 1)   
 missing_dirs = np.clip(1 - n_dirs / EXPECTED_DIRS, 0, 1)    
-missing_tides = np.clip(1 - n_dirs / EXPECTED_TIDES, 0, 1)    
+missing_tides = np.clip(1 - n_tides / EXPECTED_TIDES, 0, 1)    
 feats["missing_waves"] = missing_waves
 feats["missing_dirs"] = missing_dirs
 feats["missing_tides"] = missing_tides
