@@ -361,7 +361,7 @@ ax.text(0.2, ee.mean() + 0.01, f"Base rate: {ee.mean():.2f}", fontsize=8.5, colo
 ax.text(9, rate[-1] + 0.01, f'{rate[-1]:.2f}', ha="center", fontsize=8.5, color=INK)
 ax.set_xticks(range(10)); ax.set_xticklabels([str(i + 1) for i in range(10)])
 ax.set_xlabel("Predicted-risk decile (10 = highest)"); ax.set_ylabel("Observed extreme rate")
-ax.set_title("D: high risk score vs extremes?"); ax.grid(axis="x", visible=False)
+ax.set_title("D: high risk score vs extremes"); ax.grid(axis="x", visible=False)
 
 # E) Response curve
 ax = fig.add_subplot(gs[1, 2])
