@@ -12,10 +12,13 @@ from datetime import datetime, timedelta
 from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
 from sklearn.linear_model import LinearRegression
 from matplotlib.gridspec import GridSpec
+from scipy.stats import rankdata
 from sklearn.metrics import roc_auc_score
 
 import common
 import sys
+import matplotlib
+matplotlib.use("Agg")
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -129,16 +132,16 @@ print(f"{n_days} anchors ({DELTA}-day pairs) | erosion: mean {erosions.mean():.1
       f"extreme : erosion < {threshold:.1f} {UNIT} ({events.sum()} events)")
  
 GROUPS = {
-    "wave energy":        ["hmean", "hmax", "fluxmean", "fluxmax"],
-    "period / steepness": ["steepmean", "steepmax", "tmean", "tmax"],
-    "direction":          ["dirmean", "dirmax"],
-    "tide / run-up":      ["twlmean", "twlmax", "tidemean", "tidemax"],
-    "antecedent waves":   ["ecum_3", "ecum_14"],
-    "season":             ["season_sin", "season_cos"],
-    "beach state":        ["state_1", "state_2", "state_3"]
+    "H":                  ["hmean", "hmax"],
+    "T":                  ["tmean", "tmax"],
+    "Direction":          ["dirmean", "dirmax"],
+    "Tide":               ["tidemean", "tidemax"],
+    "Antecedent waves":   ["ecum_3", "ecum_14"],
+    "Season":             ["season_sin", "season_cos"],
+    "Beach state":        ["state_1", "state_2", "state_3"]
 }
-CORE = ["wave energy", "period / steepness", "direction", "tide / run-up"]
-EXTRA = ["antecedent waves", "season", "beach state"]
+CORE = ["H", "T", "Direction", "Tide"]
+EXTRA = ["Antecedent waves", "Season", "Beach state"]
 columns_of = lambda groups: [all_columns[n] for group in groups for n in GROUPS[group]]
 
 ### Models
@@ -274,7 +277,7 @@ evaluation_indexes = np.flatnonzero(~np.isnan(prediction))
 results = evaluate({"forest on forcing": prediction, "monthly climatology": prediction_month}, base, evaluation_indexes, reference="monthly climatology")
 
 ### Figures (done with AI, might redo later)
-BLUE, ORANGE, GREY = '#2a78d6', '#eb6834', '#8a8985'
+BLUE, ORANGE, GREY, GREEN = '#2a78d6', '#eb6834', '#8a8985', '#3c9d4e'
 INK, INK2, SURF, GRID = '#0b0b0b', '#52514e', '#fcfcfb', '#e6e5e1'
 plt.rcParams.update({
     'figure.facecolor': SURF, 'axes.facecolor': SURF, 'savefig.facecolor': SURF,
@@ -350,7 +353,6 @@ ax.set_title("C: predicted vs observed"); ax.legend(loc="upper left")
 # D) Lift by predicted-risk decile
 ax = fig.add_subplot(gs[1, 1])
 pp = probability[evaluation_indexes]; ee = events[evaluation_indexes]
-from scipy.stats import rankdata
 dec = (rankdata(pp, method="ordinal") - 1) * 10 // len(pp)         
 rate = [ee[dec == i].mean() for i in range(10)]
 ax.bar(range(10), rate, color=BLUE, width=0.7)
@@ -389,7 +391,7 @@ if TEST:
     for ax, m, ttl in ((axs[0], "auc", "AUC, worst 10%"), (axs[1], "skill", "skill vs training mean")):
         for k, y_ in zip(keys, yv):
             pt_, lo, hi = results_ablation[k][m][:3]
-            colr = BLUE if k == "Core" else (ORANGE if "Add" in k else INK2)
+            colr = BLUE if k == "Core" else (ORANGE if "Add" in k else (GREEN if "Only" in k else INK2))
             ax.plot([lo, hi], [y_, y_], color=colr, lw=2.2, solid_capstyle="round")
             ax.plot(pt_, y_, 'o', color=colr, ms=7, mec=SURF, mew=1.5)
             ax.text(hi + (0.01 if m == "auc" else 0.012), y_, f'{pt_:.2f}', va="center", fontsize=8.5, color=INK,
@@ -404,11 +406,6 @@ if TEST:
         lbl.set_color(INK); lbl.set_fontweight("bold" if k == "Core" else "normal")
     fig2.text(0.27, 0.025, "Blue = forcing groups; grey = dropping/keeping 1 group; Orange = adding 1 group", fontsize=9, color=INK2)
     fig2.savefig(OUTPUT / "ablation.png", dpi=150)
-
-try:
-    plt.show()
-except Exception:
-    pass
 
 sys.stdout = sys.__stdout__
 log.close()
