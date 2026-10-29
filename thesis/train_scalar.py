@@ -77,6 +77,12 @@ class Tee:
         for stream in self.streams:
             stream.flush()
 
+def output_path(kind, extension):
+    """output/<objective>/<kind>/<run>.<extension>  (kind: results, overview, ablation); creates the folders when needed."""
+    folder = OUTPUT / OBJECTIVE / kind
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder / f"{STRING}.{extension}"
+
 ### Data import and setup
 data = np.load(DATA / "data.npy", allow_pickle=True).item()
 feat_values = data["feat_values"]
@@ -114,7 +120,7 @@ for i in range(len(PARAMS)):
 
     UNIT = {"volume": "m³/m", "shoreline": "m"}.get(OBJECTIVE, "cm")
 
-    log = open(OUTPUT / STRING / "results.txt", "w", encoding="utf-8")
+    log = open(output_path("results", "txt"), "w", encoding="utf-8")
     sys.stdout = Tee(sys.__stdout__, log)
 
     total_feats = []
@@ -449,7 +455,7 @@ for i in range(len(PARAMS)):
     ax.set_xlabel("Storm peak of the week (log scale)"); ax.set_ylabel(f"Largest objective ({UNIT})")
     ax.set_title("E: response to the strongest wave"); ax.legend(loc="lower left")
     path = OUTPUT / STRING / f"overview_{METHOD}_{DO_EXTRA}.png"
-    fig.savefig(path, dpi=150)
+    fig.savefig(output_path("overview", "png"), dpi=150)
 
     if TEST:
         # F) Ablation
@@ -477,7 +483,7 @@ for i in range(len(PARAMS)):
             lbl.set_color(INK); lbl.set_fontweight("bold" if k == "Core" else "normal")
         fig2.text(0.27, 0.025, "Blue = forcing groups; grey = dropping/keeping 1 group; Orange = adding 1 group", fontsize=9, color=INK2)
         path = OUTPUT / STRING / f"ablation_{METHOD}_{DO_EXTRA}.png"
-        fig2.savefig(path, dpi=150)
+        fig2.savefig(output_path("ablation", "png"), dpi=150)
 
     sys.stdout = sys.__stdout__
     log.close()
