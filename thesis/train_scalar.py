@@ -32,16 +32,16 @@ if TEST_ALL:
     MIN_DIRSS = [0, 6, 12]
     MIN_TIDESS = [6, 12, 24]    
     EXTREME_SHARES = [0.05, 0.1, 0.2]       
-    OBJECTIVES = ["total_change", "shoreline", "volume"]
+    OBJECTIVES = ["total_change", "shoreline", "volume", "sat_net", "sat_abs"]
     PARAMS = [(mw, md, mt, es, obj) for mw in MIN_WAVESS for md in MIN_DIRSS for mt in MIN_TIDESS for es in EXTREME_SHARES for obj in OBJECTIVES]
 else:
-    PARAMS = [(12, 6, 6, 0.05, "dry_volume")]
-    # MIN_WAVES = 6               # minimum number of hours with wave data for a day to be considered valid
+    PARAMS = [(12, 0, 6, 0.05, "total_change")]
+    # MIN_WAVES = 12               # minimum number of hours with wave data for a day to be considered valid
     # MIN_DIRS = 0
-    # MIN_TIDES = 12
-    # MIN_DAYS = 0.6              # minimum number of good days for an anchor to be kept
-    # EXTREME_SHARE = 0.1         # percentage of objectives to be considered extreme
-    # OBJECTIVE = "total_change"  # "max_erosion", "total_change", "shoreline" "volune" or "dry_volume"
+    # MIN_TIDES = 6
+    # EXTREME_SHARE = 0.05         # percentage of objectives to be considered extreme
+    # OBJECTIVE = "total_change"  # "max_erosion", "total_change", "shoreline" "volune" or "dry_volume" (survey profiles),
+    #                             # "sat_net" or "sat_abs" (satellite shorelines, needs data/sat.npy from parse_sat.py)
 
 START = common.START
 BLOCK_DAYS = 28             # how many days in a resampling block
@@ -49,8 +49,14 @@ N_BOOT = 1000
 SKIP = 7                    # number of days to skip between training and test
 FORWARD_YEAR = 2003         # first year with forward chaining (has enough history)
 DELTA = 7                   # days between 2 surveys
-MIN_DAYS = 0.6 
-MIN_ANCHORS = 30            # minimum number of anchors in a year to consider it
+GAP_MIN, GAP_MAX = 6, 30    # satellite: days between two images
+PAIRS = "next"              # satellite: "next" = next image passes the checks,
+                            #            "all" = every pair
+MIN_COMMON = 0.5            # satellite: minimum shared points
+MIN_DAYS = 0.6              # minimum number of good days for an anchor to be kept
+
+# (anchors needed in a year to consider it, anchors needed in total, events needed, anchors needed in the past for forward chaining)
+LIMITS = {"survey": (30, 300, 30, 300), "satellite": (10, 150, 20, 60)}
 
 TEST = True                # check all models
 METHOD = "loyo"             # "loyo" or "forward"
@@ -65,7 +71,7 @@ OUTPUT = common.OUTPUT
 MEAN_SIGNALS = ["hmean", "fluxmean", "twlmean", "steepmean", "tmean", "dirmean", "tidemean"]
 MAX_SIGNALS = ["hmax", "fluxmax", "twlmax", "steepmax", "tmax", "dirmax", "tidemax"]
 
-NAMES = (MEAN_SIGNALS + MAX_SIGNALS + ["ecum_3", "ecum_14", "season_sin", "season_cos", "state_1", "state_2", "state_3"])
+NAMES = (MEAN_SIGNALS + MAX_SIGNALS + ["ecum_3", "ecum_14", "season_sin", "season_cos", "gap", "state_1", "state_2", "state_3"])
 
 class Tee:
     def __init__(self, *streams):
@@ -78,7 +84,6 @@ class Tee:
             stream.flush()
 
 def output_path(kind, extension):
-    """output/<objective>/<kind>/<run>.<extension>  (kind: results, overview, ablation); creates the folders when needed."""
     folder = OUTPUT / OBJECTIVE / kind
     folder.mkdir(parents=True, exist_ok=True)
     return folder / f"{STRING}.{extension}"
@@ -99,6 +104,16 @@ profiles = data["profiles"][indexes]
 xaxis = data["x"]
 profiles = {int(d): profiles[i] for i, d in enumerate(survey_days)}
 
+if any(params[-1].startswith("sat_") for params in PARAMS):
+    sat = np.load(DATA / "sat.npy", allow_pickle=True).item()
+    sat_days = sat["sat_days"]
+    sat_x = sat["sat_x"]
+    sat_rows = {int(d): sat["sat_values"][i] for i, d in enumerate(sat_days)}
+
+def fill_along_coast(values):
+    ok = ~np.isnan(values)
+    return np.interp(sat_x, sat_x[ok], values[ok])
+
 def volume(profile, x, dry=False):
     height = np.maximum(profile, 0) if dry else profile      # dry volume: only the sand above height 0
     return np.sum(0.5 * (height[1:] + height[:-1]) * np.diff(x)) / 100 
@@ -113,12 +128,14 @@ def shoreline(profile, x):
 
 for i in range(len(PARAMS)):
     MIN_WAVES, MIN_DIRS, MIN_TIDES, EXTREME_SHARE, OBJECTIVE = PARAMS[i]
-    STRING = f"{OBJECTIVE}_{MIN_WAVES}_{MIN_DIRS}_{MIN_TIDES}_{EXTREME_SHARE}"
+    SATELLITE = OBJECTIVE.startswith("sat_")
+    MIN_ANCHORS, MIN_TOTAL, MIN_EVENTS, MIN_PAST = LIMITS["satellite" if SATELLITE else "survey"]
+    STRING = f"{OBJECTIVE}_w{MIN_WAVES}_d{MIN_DIRS}_t{MIN_TIDES}_s{EXTREME_SHARE}_{METHOD}_{'all' if DO_EXTRA else 'core'}"
+    if SATELLITE:
+        STRING += f"_g{GAP_MIN}-{GAP_MAX}_{PAIRS}"
+    PERIOD = f"{GAP_MIN}-{GAP_MAX} days" if SATELLITE else f"{DELTA} days"
 
-    folder = OUTPUT / STRING
-    folder.mkdir(parents=True, exist_ok=True)
-
-    UNIT = {"volume": "m³/m", "shoreline": "m"}.get(OBJECTIVE, "cm")
+    UNIT = {"volume": "m³/m", "dry_volume": "m³/m", "shoreline": "m", "sat_net": "m", "sat_abs": "m"}.get(OBJECTIVE, "cm")
 
     log = open(output_path("results", "txt"), "w", encoding="utf-8")
     sys.stdout = Tee(sys.__stdout__, log)
@@ -128,43 +145,56 @@ for i in range(len(PARAMS)):
     days_a = []
     days_b = []
     profiles_a = []
-    for day in survey_days:
+    for day in (sat_days if SATELLITE else survey_days):
         a = int(day)
-        b = a + DELTA
-        if b not in profiles or a < 1 or b > n_days:
-            continue
-        f = slice(a, b)
-        feats = feat_values[f]
-        if ((wave_hours[f] >= MIN_WAVES) * (dir_hours[f] >= MIN_DIRS) * (tide_hours[f] >= MIN_TIDES)).mean() < MIN_DAYS or np.isnan(feats).any() or np.isnan(feat_values[a - 1]).any():
-            continue
-
-        if OBJECTIVE == "max_erosion":
-            objective = (profiles[b] - profiles[a]).min()
-        elif OBJECTIVE == "total_change":
-            objective = -(abs(profiles[b] - profiles[a])).sum()
-        elif OBJECTIVE == "shoreline":
-            objective = shoreline(profiles[b], xaxis) - shoreline(profiles[a], xaxis)
-        elif OBJECTIVE == "volume":
-            objective = volume(profiles[b], xaxis) - volume(profiles[a], xaxis)
-        elif OBJECTIVE == "dry_volume":
-            objective = volume(profiles[b], xaxis, True) - volume(profiles[a], xaxis, True)
+        if SATELLITE:
+            ends = sat_days[(sat_days - a >= GAP_MIN) & (sat_days - a <= GAP_MAX)]    
         else:
-            raise ValueError(OBJECTIVE)
-        if np.isnan(objective):
-            continue
+            ends = [a + DELTA]
+        for b in ends:
+            b = int(b)
+            if (not SATELLITE and b not in profiles) or a < 1 or b > n_days:
+                continue
+            f = slice(a, b)
+            feats = feat_values[f]
+            if ((wave_hours[f] >= MIN_WAVES) * (dir_hours[f] >= MIN_DIRS) * (tide_hours[f] >= MIN_TIDES)).mean() < MIN_DAYS or np.isnan(feats).any() or np.isnan(feat_values[a - 1]).any():
+                continue
 
-        season_angle = 2 * np.pi * (START + timedelta(days=a)).timetuple().tm_yday / 365.25
-        total_feats.append([feats[:, feat_indexes[n]].mean() for n in MEAN_SIGNALS]
-                        + [feats[:, feat_indexes[n]].max() for n in MAX_SIGNALS]
-                        + [feat_values[a - 1, feat_indexes["ecum_3"]], feat_values[a - 1, feat_indexes["ecum_14"]],
-                            np.sin(season_angle), np.cos(season_angle),
-                            0.0, 0.0, 0.0])
-        objectives.append(objective)
-        days_a.append(a)
-        days_b.append(b)
-        profiles_a.append(profiles[a])
+            if OBJECTIVE == "max_erosion":
+                objective = (profiles[b] - profiles[a]).min()
+            elif OBJECTIVE == "total_change":
+                objective = -(abs(profiles[b] - profiles[a])).sum()
+            elif OBJECTIVE == "shoreline":
+                objective = shoreline(profiles[b], xaxis) - shoreline(profiles[a], xaxis)
+            elif OBJECTIVE == "volume":
+                objective = volume(profiles[b], xaxis) - volume(profiles[a], xaxis)
+            elif OBJECTIVE == "dry_volume":
+                objective = volume(profiles[b], xaxis, True) - volume(profiles[a], xaxis, True)
+            elif OBJECTIVE in ("sat_net", "sat_abs"):
+                both = ~np.isnan(sat_rows[a]) & ~np.isnan(sat_rows[b])
+                if both.mean() < MIN_COMMON:
+                    continue
+                change = sat_rows[b][both] - sat_rows[a][both]
+                objective = change.mean() if OBJECTIVE == "sat_net" else -np.abs(change).mean()
+            else:
+                raise ValueError(OBJECTIVE)
+            if np.isnan(objective):
+                continue
 
-    if len(objectives) < 300:
+            season_angle = 2 * np.pi * (START + timedelta(days=a)).timetuple().tm_yday / 365.25
+            total_feats.append([feats[:, feat_indexes[n]].mean() for n in MEAN_SIGNALS]
+                            + [feats[:, feat_indexes[n]].max() for n in MAX_SIGNALS]
+                            + [feat_values[a - 1, feat_indexes["ecum_3"]], feat_values[a - 1, feat_indexes["ecum_14"]],
+                                np.sin(season_angle), np.cos(season_angle), b - a,
+                                0.0, 0.0, 0.0])
+            objectives.append(objective)
+            days_a.append(a)
+            days_b.append(b)
+            profiles_a.append(fill_along_coast(sat_rows[a]) if SATELLITE else profiles[a])      # beach state: PCA of the shoreline for satellite pairs
+            if PAIRS == "next":
+                break
+
+    if len(objectives) < MIN_TOTAL:
         print(f"skipped {STRING}: only {len(objectives)} anchors")
         sys.stdout = sys.__stdout__; log.close()
         continue
@@ -187,13 +217,13 @@ for i in range(len(PARAMS)):
     months = np.array([d.month for d in dates])
     threshold = np.quantile(objectives, EXTREME_SHARE)
     events = objectives < threshold
-    if events.sum() < 30:
+    if events.sum() < MIN_EVENTS:
         print(f"skipped {STRING}: {len(objectives)} anchors, {events.sum()} events")
         sys.stdout = sys.__stdout__; log.close()
         continue
 
     all_columns = {name: index for index, name in enumerate(NAMES)}
-    print(f"{n_anchors} anchors ({DELTA}-day pairs) | objective: mean {objectives.mean():.1f}, std {objectives.std():.1f} {UNIT} | "
+    print(f"{n_anchors} anchors ({PERIOD} pairs) | objective: mean {objectives.mean():.1f}, std {objectives.std():.1f} {UNIT} | "
         f"extreme : objective < {threshold:.1f} {UNIT} ({events.sum()} events)")
     
     GROUPS = {
@@ -203,9 +233,12 @@ for i in range(len(PARAMS)):
         "Tide":               ["tidemean", "tidemax"],
         "Antecedent waves":   ["ecum_3", "ecum_14"],
         "Season":             ["season_sin", "season_cos"],
+        "Interval":           ["gap"],
         "Beach state":        ["state_1", "state_2", "state_3"]
     }
     CORE = ["H", "T", "Direction", "Tide"]
+    if SATELLITE:
+        CORE.append("Interval")     # the pairs have different lengths (constant for the surveys, so not used there)
     EXTRA = ["Antecedent waves", "Season", "Beach state"]
     columns_of = lambda groups: [all_columns[n] for group in groups for n in GROUPS[group]]
 
@@ -223,7 +256,7 @@ for i in range(len(PARAMS)):
                 if y < FORWARD_YEAR:
                     continue
                 valid = np.flatnonzero(days_b < first - SKIP)
-                if len(valid) < 300:
+                if len(valid) < MIN_PAST:
                     continue
             folds.append((y, valid, anchors))
         return folds
@@ -304,6 +337,10 @@ for i in range(len(PARAMS)):
     core_columns = columns_of(CORE)
     columns = core_columns + columns_of(EXTRA) if DO_EXTRA else core_columns
     folds = make_folds(METHOD)
+    if not folds:
+        print(f"skipped {STRING}: no fold for method {METHOD}")
+        sys.stdout = sys.__stdout__; log.close()
+        continue
     prediction, base, probability = predict(folds, "rf", columns, True)
     prediction_month, _, _ = predict(folds, "month")
     evaluation_indexes = np.flatnonzero(~np.isnan(prediction))
@@ -321,12 +358,15 @@ for i in range(len(PARAMS)):
 
         # 2) Forward chaining (train on all previous years, test on the next year)
         forward = make_folds("forward")
-        prediction_forward, base_forward, _ = predict(forward, "rf", core_columns)
-        prediction_month_forward, _, _ = predict(forward, "month")
-        evaluation_indexes_forward = np.flatnonzero(~np.isnan(prediction_forward))
-        results_forward = evaluate({"forest on forcing": prediction_forward, "monthly climatology": prediction_month_forward},
-            base_forward, evaluation_indexes_forward, reference="monthly climatology")
-        show(f"Forward chaining, ({forward[0][0]} onward)", results_forward, evaluation_indexes_forward, reference="monthly climatology")
+        if forward:
+            prediction_forward, base_forward, _ = predict(forward, "rf", core_columns)
+            prediction_month_forward, _, _ = predict(forward, "month")
+            evaluation_indexes_forward = np.flatnonzero(~np.isnan(prediction_forward))
+            results_forward = evaluate({"forest on forcing": prediction_forward, "monthly climatology": prediction_month_forward},
+                base_forward, evaluation_indexes_forward, reference="monthly climatology")
+            show(f"Forward chaining, ({forward[0][0]} onward)", results_forward, evaluation_indexes_forward, reference="monthly climatology")
+        else:
+            print(f"\n=== Forward chaining skipped: no year has {MIN_PAST} earlier anchors (MIN_PAST in LIMITS) after {FORWARD_YEAR}")
 
         # 3) Ablation (removal of features)
         configs = {"Core": CORE}
@@ -345,7 +385,9 @@ for i in range(len(PARAMS)):
     if TEST_ALL:
         rows = []
         for model, result in results.items():
-            row = dict(objective=OBJECTIVE, min_waves=MIN_WAVES, min_dirs=MIN_DIRS, min_tides=MIN_TIDES, extreme_share=EXTREME_SHARE,
+            row = dict(run=STRING, objective=OBJECTIVE, method=METHOD, extra=DO_EXTRA, min_waves=MIN_WAVES, min_dirs=MIN_DIRS,
+                    min_tides=MIN_TIDES, min_days=MIN_DAYS, min_anchors=MIN_ANCHORS, extreme_share=EXTREME_SHARE,
+                    gap_min=GAP_MIN if SATELLITE else DELTA, gap_max=GAP_MAX if SATELLITE else DELTA, pairs=PAIRS if SATELLITE else "survey",
                     n_anchors=len(evaluation_indexes), n_events=int(events[evaluation_indexes].sum()), model=model)
             for metric, (value, lo, hi, dlo, dhi) in result.items():
                 row.update({metric: value, f"{metric}_low": lo, f"{metric}_high": hi, f"{metric}_diff_low": dlo, f"{metric}_diff_high": dhi})
@@ -371,7 +413,7 @@ for i in range(len(PARAMS)):
 
     fig = plt.figure(figsize=(16, 9.2))
     gs = GridSpec(2, 3, figure=fig, hspace=0.38, wspace=0.26, left=0.055, right=0.985, top=0.93, bottom=0.075)
-    fig.suptitle(f"Largest objective over 7 days, predicted from forcing ({METHOD})",
+    fig.suptitle(f"Largest objective over {PERIOD}, predicted from forcing ({METHOD})",
         x=0.055, ha='left', fontsize=12, fontweight='bold')
 
     # A) Time series
@@ -387,8 +429,9 @@ for i in range(len(PARAMS)):
     ax.axhline(threshold, color=ORANGE, lw=0.8, ls=':')
     ax.axvspan(datetime(2008, 1, 1), datetime(2010, 1, 1), color=GRID, alpha=0.7, lw=0)
     ax.text(datetime(2009, 1, 1), ax.get_ylim()[1] * 0.97, "No wave\ndata", ha="center", va="top", fontsize=8.5, color=INK2)
-    ax.axvline(datetime(2011, 6, 1), color=INK2, lw=0.8, ls='--')
-    ax.text(datetime(2011, 9, 1), ax.get_ylim()[0] * 0.98, "Weekly surveys ->", fontsize=8.5, color=INK2, va="bottom")
+    if not SATELLITE:
+        ax.axvline(datetime(2011, 6, 1), color=INK2, lw=0.8, ls='--')
+        ax.text(datetime(2011, 9, 1), ax.get_ylim()[0] * 0.98, "Weekly surveys ->", fontsize=8.5, color=INK2, va="bottom")
     ax.set_ylabel(f"Largest objective ({UNIT})")
     ax.set_title("A: observed vs predicted objective")
     ax.legend(loc="upper left", ncol=3, bbox_to_anchor=(0.0, -0.09))
@@ -454,7 +497,6 @@ for i in range(len(PARAMS)):
     ax.plot(mid, mp, color=BLUE, marker="o", ms=5, label="Predicted, median")
     ax.set_xlabel("Storm peak of the week (log scale)"); ax.set_ylabel(f"Largest objective ({UNIT})")
     ax.set_title("E: response to the strongest wave"); ax.legend(loc="lower left")
-    path = OUTPUT / STRING / f"overview_{METHOD}_{DO_EXTRA}.png"
     fig.savefig(output_path("overview", "png"), dpi=150)
 
     if TEST:
@@ -482,7 +524,6 @@ for i in range(len(PARAMS)):
         for lbl, k in zip(axs[0].get_yticklabels(), keys):
             lbl.set_color(INK); lbl.set_fontweight("bold" if k == "Core" else "normal")
         fig2.text(0.27, 0.025, "Blue = forcing groups; grey = dropping/keeping 1 group; Orange = adding 1 group", fontsize=9, color=INK2)
-        path = OUTPUT / STRING / f"ablation_{METHOD}_{DO_EXTRA}.png"
         fig2.savefig(output_path("ablation", "png"), dpi=150)
 
     sys.stdout = sys.__stdout__
