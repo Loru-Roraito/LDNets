@@ -13,6 +13,9 @@ Day convention, as for the surveys: an image on day a is the shoreline at about 
 
 Run:  python parse_sat.py [folder]      (default: data/coastsat)
 """
+
+### PLACEHOLDER: done just to test satellite data. If used, I will rewrite it in the future
+
 import re
 import sys
 from datetime import datetime
