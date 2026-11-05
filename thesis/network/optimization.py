@@ -7,6 +7,8 @@ import scipy.optimize as sopt
 class OptimizationProblem():
     """
     Class representing an optimization problem.
+    Keeps the parameters with the lowest validation loss seen so far (checked every 10 epochs);
+    restore_best() puts them back into the variables.
     """
     def __init__(self, variables, loss_train, loss_valid):
         """
@@ -30,6 +32,9 @@ class OptimizationProblem():
         self.iterations_history = list()
         self.loss_train_history = list()
         self.loss_valid_history = list()
+        self.best_valid = np.inf
+        self.best_epoch = 0
+        self.best_params = None
         self.iteration_callback()
 
     def compile(self):
@@ -69,10 +74,22 @@ class OptimizationProblem():
             self.iterations_history.append(self.iteration)
             self.loss_train_history.append(self.ag_train_loss())
             self.loss_valid_history.append(self.ag_valid_loss())
+            valid = float(self.loss_valid_history[-1])
+            improved = valid < self.best_valid
+            if improved:
+                self.best_valid = valid
+                self.best_epoch = self.iteration
+                self.best_params = self.stitcher.stitch(self.variables).numpy()
             timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            print('[%s] epoch% 5d   -   training loss: %1.3e   -   validation loss %1.3e' %
-                  (timestamp, self.iteration, self.loss_train_history[-1], self.loss_valid_history[-1]))
+            print('[%s] epoch% 5d   -   training loss: %1.3e   -   validation loss %1.3e%s' %
+                  (timestamp, self.iteration, self.loss_train_history[-1], self.loss_valid_history[-1], '  *' if improved else ''))
         self.iteration += 1
+
+    def restore_best(self):
+        """Put the parameters with the lowest validation loss back into the variables."""
+        if self.best_params is not None:
+            self.stitcher.update_variables(self.best_params)
+        print('restored the parameters of epoch %d (validation loss %1.3e)' % (self.best_epoch, self.best_valid))
         
     def optimize_keras(self, num_epochs, optimizer):
         for _ in range(num_epochs):

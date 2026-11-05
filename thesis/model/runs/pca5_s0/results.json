@@ -1,0 +1,47 @@
+{
+  "run": "pca5_s0",
+  "seed": 0,
+  "num_latent_states": 3,
+  "N_PROFILE_POINTS": 5,
+  "PROFILE_FEATURES": "pca",
+  "output_mode": "abs",
+  "epochs_adam": 1000,
+  "epochs_bfgs": 200,
+  "final_train_loss": 0.33678082675881177,
+  "final_valid_loss": 0.516429062875218,
+  "best_valid_loss": 0.4956298809659548,
+  "best_epoch": 1080,
+  "minutes": 21.6,
+  "report": {
+    "train": {
+      "rmse_model": 25.865639288895927,
+      "rmse_zero": 43.107603788691264,
+      "rmse_mean": 29.65115863537368,
+      "vs_zero": 0.6399700181496453,
+      "vs_mean": 0.23903777765757628,
+      "top_rmse_model": 39.735177284053925,
+      "top_rmse_zero": 72.9894006947577,
+      "top_vs_zero": 0.7036324059061022
+    },
+    "valid": {
+      "rmse_model": 32.57268371286651,
+      "rmse_zero": 48.23225600987352,
+      "rmse_mean": 32.904195295703374,
+      "vs_zero": 0.5439295517905228,
+      "vs_mean": 0.02004860359779792,
+      "top_rmse_model": 46.885827149447316,
+      "top_rmse_zero": 72.51013089539455,
+      "top_vs_zero": 0.5818945909798818
+    },
+    "test": {
+      "rmse_model": 24.527801287871636,
+      "rmse_zero": 36.97672763865235,
+      "rmse_mean": 25.221677664070093,
+      "vs_zero": 0.5599922870150913,
+      "vs_mean": 0.05426536095477186,
+      "top_rmse_model": 36.34660853252717,
+      "top_rmse_zero": 57.13886425514541,
+      "top_vs_zero": 0.5953639434099511
+    }
+  }
+}

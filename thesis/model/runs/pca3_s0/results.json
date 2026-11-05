@@ -1,0 +1,47 @@
+{
+  "run": "pca3_s0",
+  "seed": 0,
+  "num_latent_states": 3,
+  "N_PROFILE_POINTS": 3,
+  "PROFILE_FEATURES": "pca",
+  "output_mode": "abs",
+  "epochs_adam": 1000,
+  "epochs_bfgs": 200,
+  "final_train_loss": 0.341852253456033,
+  "final_valid_loss": 0.525835036055102,
+  "best_valid_loss": 0.474538649697846,
+  "best_epoch": 1100,
+  "minutes": 21.8,
+  "report": {
+    "train": {
+      "rmse_model": 26.03652902009816,
+      "rmse_zero": 43.107603788691264,
+      "rmse_mean": 29.65115863537368,
+      "vs_zero": 0.6351969932131534,
+      "vs_mean": 0.22894947433266521,
+      "top_rmse_model": 40.551099367244966,
+      "top_rmse_zero": 72.9894006947577,
+      "top_vs_zero": 0.6913362203093425
+    },
+    "valid": {
+      "rmse_model": 32.87063700305019,
+      "rmse_zero": 48.23225600987352,
+      "rmse_mean": 32.904195295703374,
+      "vs_zero": 0.5355477311827181,
+      "vs_mean": 0.0020387175346729958,
+      "top_rmse_model": 45.580911377866556,
+      "top_rmse_zero": 72.51013089539455,
+      "top_vs_zero": 0.6048439542985291
+    },
+    "test": {
+      "rmse_model": 26.273720855275638,
+      "rmse_zero": 36.97672763865235,
+      "rmse_mean": 25.221677664070093,
+      "vs_zero": 0.49512227048018453,
+      "vs_mean": -0.08516360781560572,
+      "top_rmse_model": 41.728003219858564,
+      "top_rmse_zero": 57.13886425514541,
+      "top_vs_zero": 0.46667492996042326
+    }
+  }
+}

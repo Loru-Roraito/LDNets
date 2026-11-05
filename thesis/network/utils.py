@@ -56,13 +56,9 @@ def process_dataset(dataset, problem, normalization_definition, dt = None, num_p
         times = np.arange(dataset['times'][0], dataset['times'][-1] + dt * 1e-10, step = dt)
         if dataset['inp_signals'] is not None:
             dataset['inp_signals'] = interpolate.interp1d(dataset['times'], dataset['inp_signals'], axis = 1)(times)
+        if dataset['inp_parameters'] is not None:
+            dataset['inp_parameters'] = interpolate.interp1d(dataset['times'], dataset['inp_parameters'], axis = 1)(times)
         dataset['out_fields'] = interpolate.interp1d(dataset['times'], dataset['out_fields'], axis = 1)(times)
-        dataset['output_real'] = interpolate.interp1d(
-            dataset['times'],
-            dataset['output_real'].astype(np.float64),
-            axis=1,
-            kind='nearest',
-        )(times).astype(bool)
         dataset['times'] = times
 
     num_samples = dataset['out_fields'].shape[0]
@@ -90,76 +86,3 @@ def process_dataset(dataset, problem, normalization_definition, dt = None, num_p
     if dataset['inp_signals'] is not None:
         dataset['inp_signals'] = tf.convert_to_tensor(dataset['inp_signals'], tf.float64)
     dataset['out_fields'] = tf.convert_to_tensor(dataset['out_fields'], tf.float64)
-    dataset['output_real'] = tf.convert_to_tensor(dataset['output_real'], tf.bool)
-
-def plot_output_1D(dataset, out_fields_ref, out_fields_app, n_row, n_col, title_ROM = 'ROM'):
-    fig = plt.figure(figsize=(10, 8), constrained_layout=False)
-    outer_grid = fig.add_gridspec(n_row, n_col, wspace=1e-1, hspace=3e-1)
-
-    t = dataset['times']
-    x = dataset['points']
-    X, T = np.meshgrid(x,t)
-
-    vmin, vmax = np.min(out_fields_ref), np.max(out_fields_ref)
-    for i_sample in range(n_col*n_row):
-        idx_col = i_sample % n_col
-        idx_row = int((i_sample - idx_col) / n_col)
-
-        inner_grid = outer_grid[idx_row, idx_col].subgridspec(1, 2, wspace=0, hspace=0)
-        axs = inner_grid.subplots()
-
-        axs[0].pcolormesh(X, T, out_fields_ref[i_sample,:,:,0], shading='auto', vmin = vmin, vmax = vmax)
-        axs[1].pcolormesh(X, T, out_fields_app[i_sample,:,:,0], shading='auto', vmin = vmin, vmax = vmax)
-        axs[0].set_title('FOM')
-        axs[1].set_title(title_ROM)
-
-        for ax in axs.flatten():
-            ax.set(xticks=[], yticks=[])
-            for spine in ['top', 'bottom', 'left', 'right']: ax.spines[spine].set_visible(True)
-    return fig
-
-def plot_time_slices_1D(dataset, out_fields_ref, out_fields_app, n_row, n_col, sample_idx = 0, time_indices = None, title_ROM = 'ROM'):
-    fig = plt.figure(figsize=(12, 8), constrained_layout=False)
-    outer_grid = fig.add_gridspec(n_row, n_col, wspace=0.25, hspace=0.35)
-
-    x = dataset['points']
-    t = dataset['times']
-    if time_indices is None:
-        time_indices = np.linspace(0, len(t) - 1, n_row * n_col, dtype=int)
-
-    for i_subplot, time_idx in enumerate(time_indices[:n_row * n_col]):
-        idx_col = i_subplot % n_col
-        idx_row = int((i_subplot - idx_col) / n_col)
-        ax = fig.add_subplot(outer_grid[idx_row, idx_col])
-
-        ax.plot(x, out_fields_ref[sample_idx, time_idx, :, 0], label='Original', color='black', linewidth=1.5)
-        ax.plot(x, out_fields_app[sample_idx, time_idx, :, 0], label=title_ROM, color='tab:orange', linewidth=1.5, linestyle='--')
-        ax.set_title(f't = {t[time_idx]:.2f}')
-        ax.set_xlabel('x')
-        ax.set_ylabel('height')
-        ax.grid(True, alpha=0.25)
-
-        if i_subplot == 0:
-            ax.legend(loc='best')
-
-    return fig
-
-def MY_create_dataset(dataset_path, idxs):
-    print('loading dataset %s' % dataset_path)
-    dataset = np.load(dataset_path, allow_pickle = True)[()]
-    print('loaded dataset')
-    output_real = dataset.get(
-        'output_real',
-        np.ones(dataset['output'].shape[:2], dtype=bool),
-    )
-
-    new_dataset = {
-        'points' : dataset['x'][:, None], # [num_points x num_coordinates]
-        'times' : dataset['t'], # [num_times]
-        'inp_parameters' : None, # [num_samples x num_par]
-        'inp_signals' : dataset['sign'][idxs,:,:], # [num_samples x num_times x num_signals]
-        'out_fields' : dataset['output'][idxs,:,:,None], # [num_samples x num_times x num_points x num_fields]
-        'output_real' : output_real[idxs,:], # [num_samples x num_times]
-    }
-
-    return new_dataset
