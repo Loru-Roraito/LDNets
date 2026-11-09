@@ -1,0 +1,8 @@
+2537 anchors (7 days pairs) | objective: mean 0.3, std 59.2 m³/m | extreme : objective < -106.4 m³/m (126 events)
+
+=== LOYO | 2515 pairs, 123 events in 61 separate 28-day blocks
+model                        |         corr          | Skill vs training mean |     AUC worst 5%     
+forest on forcing            |  0.354 [ 0.282, 0.419] |  0.117 [ 0.051, 0.176] |  0.839 [ 0.790, 0.880]
+monthly climatology          | -0.013 [-0.073, 0.044] | -0.011 [-0.022,-0.000] |  0.491 [ 0.413, 0.567]
+difference with "monthly climatology":
+forest on forcing            | +0.367 [+0.276,+0.452] | +0.128 [+0.065,+0.187] | +0.348 [+0.268,+0.428]

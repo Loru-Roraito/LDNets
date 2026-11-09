@@ -28,14 +28,14 @@ import pandas as pd
 ### Settings
 TEST_ALL = False
 if TEST_ALL:       
-    MIN_WAVESS = [3, 6, 12]
-    MIN_DIRSS = [0, 6, 12]
-    MIN_TIDESS = [6, 12, 24]    
-    EXTREME_SHARES = [0.05, 0.1, 0.2]       
+    MIN_WAVESS = [12]
+    MIN_DIRSS = [6]
+    MIN_TIDESS = [6]    
+    EXTREME_SHARES = [0.05]       
     OBJECTIVES = ["total_change", "shoreline", "volume", "sat_net", "sat_abs"]
     PARAMS = [(mw, md, mt, es, obj) for mw in MIN_WAVESS for md in MIN_DIRSS for mt in MIN_TIDESS for es in EXTREME_SHARES for obj in OBJECTIVES]
 else:
-    PARAMS = [(12, 0, 6, 0.05, "total_change")]
+    PARAMS = [(12, 6, 6, 0.05, "volume")]
     # MIN_WAVES = 12               # minimum number of hours with wave data for a day to be considered valid
     # MIN_DIRS = 0
     # MIN_TIDES = 6
@@ -58,9 +58,9 @@ MIN_DAYS = 0.6              # minimum number of good days for an anchor to be ke
 # (anchors needed in a year to consider it, anchors needed in total, events needed, anchors needed in the past for forward chaining)
 LIMITS = {"survey": (30, 300, 30, 300), "satellite": (10, 150, 20, 60)}
 
-TEST = True                # check all models
+TEST = False                # check all models
 METHOD = "loyo"             # "loyo" or "forward"
-DO_EXTRA = True
+DO_EXTRA = False
 
 N_TREES= 200
 MIN_LEAF = 20
@@ -495,7 +495,7 @@ for i in range(len(PARAMS)):
     ax.fill_between(mid, q1, q3, color=GREY, alpha=0.25, lw=0, label="Observed, middle half")
     ax.plot(mid, mo, color=GREY, marker="o", ms=5, label="Observed, median")
     ax.plot(mid, mp, color=BLUE, marker="o", ms=5, label="Predicted, median")
-    ax.set_xlabel("Storm peak of the week (log scale)"); ax.set_ylabel(f"Largest objective ({UNIT})")
+    ax.set_xlabel("Wave height peak of the week (log scale)"); ax.set_ylabel(f"Largest objective ({UNIT})")
     ax.set_title("E: response to the strongest wave"); ax.legend(loc="lower left")
     fig.savefig(output_path("overview", "png"), dpi=150)
 

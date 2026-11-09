@@ -1,0 +1,1 @@
+skipped sat_net_w12_d6_t6_s0.05_loyo_core_g6-30_next: 261 anchors, 13 events
