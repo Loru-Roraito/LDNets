@@ -15,14 +15,19 @@ start_date = datetime(1997, 4, 1)
 dt = 24
 dt_hourly = 1
 dt_base = 24
-num_latent_states = 10
-n_points = 10
+num_latent_states = 5
+n_PCA = 5
 
 problem = {
     "space": {
         "dimension" : 1
     },
-    "input_parameters": [],
+    "input_parameters": [
+        *[
+            {"name": f"PCA_{point}"}
+            for point in range(n_PCA)
+        ]
+    ],
     "input_signals": [
         { "name": "hmean" },
         { "name": "hmax" },
@@ -34,11 +39,7 @@ problem = {
         { "name": "dirmax" },
 
         { "name": "tidemean" },
-        { "name": "tidemax" },
-        *[
-            {"name": f"height_{point}"}
-            for point in range(n_points)
-        ],
+        { "name": "tidemax" }
     ],
     "output_fields": [
         { "name": "y" }
@@ -61,12 +62,13 @@ normalization = {
         'dirmax': { 'min': 6.8, 'max': 168 },
 
         'tidemean': { 'min': 1.4, 'max': 2.6 },
-        'tidemax': { 'min': 1.6, 'max': 3.14 },
-
+        'tidemax': { 'min': 1.6, 'max': 3.14 }
+    },
+    'input_parameters': {
         **{
             f'height_{point}': {'min': -700, 'max': 900}
-            for point in range(n_points)
-        },
+            for point in range(n_PCA)
+        }
     },
     'output_fields': {
         'y': { 'min': -700, 'max': +900 }
@@ -77,20 +79,6 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DATA_PATH = REPO_ROOT / 'thesis' / 'data' /'data.npy'
 MODEL_DIR = REPO_ROOT / 'thesis' / 'model' / 'trained_model'
 HISTORY_PATH = REPO_ROOT / 'thesis' / 'model' / 'training_history.npz'
-DATA_PATH_HOURLY = REPO_ROOT / 'thesis' / 'data' /'data_hourly.npy'
-MODEL_DIR_HOURLY = REPO_ROOT / 'thesis' / 'model' / 'trained_model_hourly'
-HISTORY_PATH_HOURLY = REPO_ROOT / 'thesis' / 'model' / 'training_history_hourly.npz'
-
-normalization_hourly = {
-    **normalization,
-    'input_signals': {
-        **normalization['input_signals'],
-        **{
-            f'difference_{point}': {'min': -10, 'max': 10}
-            for point in range(n_points)
-        },
-    },
-}
 
 def load_datasets():
     rng = np.random.default_rng(SEED)
@@ -114,35 +102,6 @@ def load_datasets():
     utils.process_dataset(dataset_train, problem, normalization)
     utils.process_dataset(dataset_valid, problem, normalization)
     utils.process_dataset(dataset_tests, problem, normalization)
-
-    dataset_train['sample_indices'] = train_indices
-    dataset_valid['sample_indices'] = valid_indices
-    dataset_tests['sample_indices'] = test_indices
-
-    return dataset_train, dataset_valid, dataset_tests
-
-def load_datasets_hourly():
-    rng = np.random.default_rng(SEED)
-    a = 0
-    b = 120
-    x = 100
-    train_indices = np.sort(rng.choice(np.arange(a, b), size=x, replace=False))
-    remaining_1 = np.setdiff1d(np.arange(a, b), train_indices)
-    dataset_train = utils.MY_create_dataset(DATA_PATH_HOURLY, train_indices)
-    
-    a = 120
-    b = 150
-    x = 30
-    valid_indices = np.sort(rng.choice(np.arange(a, b), size=x, replace=False))
-    dataset_valid = utils.MY_create_dataset(DATA_PATH_HOURLY, valid_indices)
-    remaining_2 = np.setdiff1d(np.arange(a, b), valid_indices)
-
-    test_indices = np.concatenate([remaining_1, remaining_2, np.arange(200, 240)])
-    dataset_tests = utils.MY_create_dataset(DATA_PATH_HOURLY, test_indices)
-
-    utils.process_dataset(dataset_train, problem, normalization_hourly)
-    utils.process_dataset(dataset_valid, problem, normalization_hourly)
-    utils.process_dataset(dataset_tests, problem, normalization_hourly)
 
     dataset_train['sample_indices'] = train_indices
     dataset_valid['sample_indices'] = valid_indices
@@ -200,7 +159,7 @@ class LDNetModel:
         dt_ref = self.normalization['time']['time_constant']
  
         for i in tf.range(dataset['num_times'] - 1):
-            state = state + self.dt / dt_ref * self.NNdyn(tf.concat([state, dataset['inp_signals'][:, i, :]], axis=-1))
+            state = state + self.dt / dt_ref * self.NNdyn(tf.concat([state, dataset['inp_parameters'], dataset['inp_signals'][:, i, :]], axis=-1))
             state_history = state_history.write(i + 1, state)
  
         return tf.transpose(state_history.stack(), perm=(1, 0, 2))

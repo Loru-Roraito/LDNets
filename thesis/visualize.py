@@ -14,18 +14,10 @@ from scipy import stats
 from matplotlib.animation import FuncAnimation
 from matplotlib.widgets import Slider, Button
 
-hourly = True
-reconstruction = True
-
 # %%
-if hourly:
-    data_path = common.DATA_PATH_HOURLY
-    dataset_train, dataset_valid, dataset_tests = common.load_datasets_hourly()
-    model_dt = common.dt_hourly
-else:
-    data_path = common.DATA_PATH
-    dataset_train, dataset_valid, dataset_tests = common.load_datasets()
-    model_dt = common.dt
+data_path = common.DATA_PATH
+dataset_train, dataset_valid, dataset_tests = common.load_datasets()
+model_dt = common.dt
 problem = common.problem
 normalization = common.normalization
 model_dir = common.MODEL_DIR
@@ -115,12 +107,11 @@ fom, = ax.plot(
     out_fields_FOM[0, 0, :, 0],
     label="original",
 )
-if reconstruction:
-    rom, = ax.plot(
-        x_values,
-        out_fields_ROM[0, 0, :, 0],
-        label="reconstruction",
-    )
+rom, = ax.plot(
+    x_values,
+    out_fields_ROM[0, 0, :, 0],
+    label="reconstruction",
+)
 
 ax.set_ylim(out_fields_FOM.min(), out_fields_FOM.max())
 ax.set_xlim(x_values.min(), x_values.max())
@@ -170,10 +161,9 @@ def draw_frame(frame):
 
     fom.set_ydata(out_fields_FOM[sample_idx, day_idx, :, 0])
 
-    if reconstruction:
-        rom_frame = out_fields_ROM[sample_idx, day_idx, :, 0]
-        rom.set_ydata(rom_frame)
-        rmse_bar[0].set_height(nrmse_values[sample_idx, day_idx])
+    rom_frame = out_fields_ROM[sample_idx, day_idx, :, 0]
+    rom.set_ydata(rom_frame)
+    rmse_bar[0].set_height(nrmse_values[sample_idx, day_idx])
 
     for bar, value in zip(quality_bars, quality[sample_idx]):
         bar.set_width(value)

@@ -125,8 +125,7 @@ def split_signals(hs, ts, dirs, wave_dates, tides, tide_dates, dt):
     t_qualities = []
     dir_qualities = []
     tide_qualities = []
-    a = 0
-    previous_heights = [[0 for _ in range(common.n_points)] for _ in range(average_n)]
+    
     while time < delta:
         current_time = 0
         signal = []
@@ -135,7 +134,6 @@ def split_signals(hs, ts, dirs, wave_dates, tides, tide_dates, dt):
         dir_quality = dt
         tide_quality = dt
 
-        b = 0
         while current_time < dt and time < delta:
             subtime = 0
             h = []
@@ -230,32 +228,6 @@ def split_signals(hs, ts, dirs, wave_dates, tides, tide_dates, dt):
             tidemax = tide[hmax_index]
 
             signal.append([hmean, hmax, tmean, tmax, dirmean, dirmax, tidemean, tidemax])  
-
-            for x in range(common.n_points):
-                c = a
-                d = b
-                if a < len(output):
-                    if b > 0:
-                        d -= 1
-                        height = output[c][d][x * len(xaxis) // common.n_points]
-                    elif a > 0:
-                        c -= 1
-                        d = -1
-                        height = output[c][d][x * len(xaxis) // common.n_points]
-                    else:
-                        d = 0
-                        height = output[c][d][x * len(xaxis) // common.n_points]
-
-                    if previous_heights[0][x] == 0:
-                        for l in range(average_n):
-                            previous_heights[l][x] = height
-                    elif current_time % 24 == 0:
-                        for l in range(average_n - 1):
-                            previous_heights[l][x] = previous_heights[l + 1][x]
-                        previous_heights[-1][x] = height
-                    signal[-1].append(np.mean(previous_heights, axis=0)[x])
-
-            b += 1
 
         signals.append(signal)
         h_qualities.append(h_quality - (dt - current_time))

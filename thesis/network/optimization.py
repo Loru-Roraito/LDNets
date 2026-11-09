@@ -80,25 +80,20 @@ class OptimizationProblem():
             self.iteration_callback()
         
     def optimize_BFGS(self, num_epochs):
-        options = {
-            "maxiter": num_epochs,
-            "gtol": 1e-100
-        }
+        options = {'maxiter': num_epochs, 'gtol': 1e-100}
         init_params = self.stitcher.stitch(self.variables).numpy()
 
         def callback(_):
             self.iteration_callback()
             return False
-
-        sopt.minimize(
-            fun=self.ag_train_loss_grad_numpy,
-            x0=init_params,
-            method="BFGS",
-            jac=True,
-            callback=callback,
-            options=options,
-            tol=1e-100
-        )
+    
+        sopt.minimize(fun = self.ag_train_loss_grad_numpy,
+                x0 = init_params,
+                method = 'BFGS',
+                jac = True,
+                tol = 1e-100,
+                options = options,
+                callback = callback)
 
 class VariablesStitcher:
     """
