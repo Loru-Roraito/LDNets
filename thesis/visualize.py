@@ -62,13 +62,9 @@ print('Pearson dissimilarity: %1.3e' % (1 - R_coeff[0]))
 
 raw_dataset = np.load(data_path, allow_pickle=True).item()
 x_values = raw_dataset["x"]
-all_indices = np.arange(len(raw_dataset["output"]))
-raw_sample_ids = raw_dataset["sample_ids"]
-restore_order = np.argsort(raw_sample_ids)
-sample_ids = raw_sample_ids[restore_order]
+valid_indices = np.flatnonzero(raw_dataset["valid"])           # the windows that pass the quality checks, in date order
 
-dataset_all = utils.MY_create_dataset(data_path, all_indices[restore_order])
-utils.process_dataset(dataset_all, problem, normalization)
+dataset_all = common.make_dataset(raw_dataset, valid_indices)
 
 out_fields = model(dataset_all)
 
@@ -79,14 +75,11 @@ out_fields_FOM = utils.denormalize_output(
 out_fields_ROM = utils.denormalize_output(
     out_fields, problem, normalization
 ).numpy()
-sample_dates = raw_dataset["sample_dates"][restore_order]
-quality = raw_dataset["quality"][restore_order]
-quality *= np.array([24, 2, 2, 2, 1])
+sample_dates = raw_dataset["sample_dates"][valid_indices]
+signals_normalized = dataset_all["inp_signals"].numpy()
 
-dataset_splits_by_row = np.full(len(raw_dataset["output"]), "test", dtype=object)
-dataset_splits_by_row[dataset_train["sample_indices"]] = "train"
-dataset_splits_by_row[dataset_valid["sample_indices"]] = "validation"
-dataset_splits = dataset_splits_by_row[restore_order]
+split_names = np.array(["extreme (left out)", "not used", "train", "validation", "test"])      # split: -2, -1, 0, 1, 2 (written by parse.py)
+dataset_splits = split_names[np.asarray(raw_dataset["split"])[valid_indices] + 2]
 
 # %%
 num_samples, num_days = out_fields_FOM.shape[:2]
@@ -117,16 +110,16 @@ ax.set_ylim(out_fields_FOM.min(), out_fields_FOM.max())
 ax.set_xlim(x_values.min(), x_values.max())
 ax.legend()
 
-quality_labels = ["output", "height", "period", "direction", "tide"]
-quality_values = quality[0]
+signal_labels = [signal["name"] for signal in problem["input_signals"]]
 
-quality_bars = quality_ax.barh(
-    quality_labels,
-    quality_values,
+signal_bars = quality_ax.barh(
+    signal_labels,
+    signals_normalized[0, 0],
 )
 
-quality_ax.set_xlim(0, 28 * 24)
-quality_ax.set_xlabel("valid hours")
+quality_ax.set_xlim(-1.5, 1.5)
+quality_ax.axvline(0, color="gray", linewidth=0.5)
+quality_ax.set_xlabel("signals (normalized)")
 quality_ax.invert_yaxis()
 
 rmse_bar = rmse_ax.bar([0], [nrmse_values[0, 0]], width=0.6)
@@ -165,7 +158,7 @@ def draw_frame(frame):
     rom.set_ydata(rom_frame)
     rmse_bar[0].set_height(nrmse_values[sample_idx, day_idx])
 
-    for bar, value in zip(quality_bars, quality[sample_idx]):
+    for bar, value in zip(signal_bars, signals_normalized[sample_idx, day_idx]):
         bar.set_width(value)
 
     sample_start_hours = sample_dates[sample_idx]

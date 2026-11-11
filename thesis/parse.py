@@ -1,295 +1,190 @@
 import os
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+
 import json
-import pandas as pd
-import numpy as np
-from datetime import datetime
 import common
 
-dt = 28 # number of days in a sample
-wave_n = 24
-tide_n = 24
-train_threshold = 0.9
-test_threshold = 0.5
-start_date = datetime(1997, 4, 1)
-end_date = datetime(2019, 1, 31 )
-delta = (end_date - start_date).total_seconds() / 3600
-hour_n = 24
-average_n = 7
-filename = "data"
+import pandas as pd
+import numpy as np
+
+from datetime import datetime
+from numpy.lib.stride_tricks import sliding_window_view
+
+DAYS_N = 28 # number of days in a sample
+HOUR_N = 24 # number of hours in a day 
+WAVE_N = 12 # number of expected wave measurements per day
+TIDE_N = 24 # number of expected tide measurements per day
+OFFSET = 10 # 10 = windows from 10:00 to 10:00 (aligned with the survey), 0 = calendar days
+STRIDE = 7  # stride between windows (1 = daily)
+# minimum average values for a window to be valid
+MIN_SURVEY = 0.5
+MIN_WAVE = 9 / 12 
+MIN_PERIOD = 3 / 12  
+MIN_DIR =  3 / 12    
+MIN_TIDE = 6 / 24
+REQUIRE_START = True   # day 0 must be a real survey
+# split by blocks of years (the windows overlap, so a random split would leak): remainder of (year % YEAR_BLOCK)
+YEAR_BLOCK = 5
+VALID_REMAINDER = 1   # years 1991, 1996, 2001, ... -> validation
+TEST_REMAINDER = 4    # years 1994, 1999, 2004, ... -> test, all others -> training
+EXCLUDE_TOP = 0.01    # training and validation windows with the largest change (top 1%, threshold from the training windows) are left out; 0 = keep all. Test is never filtered.
+
+START_DATE = datetime(1987, 1, 5)
+END_DATE = datetime(2024, 12, 24)
+N_DAYS = (END_DATE - START_DATE).days + 1
 
 def parse_xaxis(value):
     return float(value.rstrip("m"))
 
-def parse_coast_date(value):
-    dt = datetime.strptime(value, "%Y-%m-%d")
-    return (dt - start_date).total_seconds() / 3600
-
-def parse_date(dt):
-    return (dt - start_date).total_seconds() / 3600
+def parse_date(value):
+    day = datetime.strptime(value, "%Y-%m-%d")
+    return (day - START_DATE).total_seconds() / 3600
 
 with open("thesis/data/coast.json", "r", encoding="utf-8") as f:
-    coast = json.load(f)
-
-xaxis = [parse_xaxis(x) for x in coast["xaxis"]]
-xaxis = np.asarray(xaxis, dtype=np.float64)
-series = coast["series"]
-
-coast_dates = []
-values = []
-
-for value in series:
-    date = parse_coast_date(value[0])
-    coast_dates.append(date)
-    measurements = [float(x) for x in value[1:]]
-    values.append(measurements)
-
-coast_dates = np.asarray(coast_dates, dtype=np.float64)
-values = np.asarray(values, dtype=np.float64)
-
+    coast_file = json.load(f)
 
 with open("thesis/data/wave.csv", "r", encoding="utf-8") as f:
-    wave = pd.read_csv(f)
-
-wave_dates = pd.to_datetime(wave["date"], format="%Y/%m/%d %H:%M:%S")
-wave_dates = [parse_date(t) for t in wave_dates]
-wave_dates = np.asarray(wave_dates, dtype=np.float64)
-
-hs = np.asarray(wave["H"], dtype=np.float64)
-ts = np.asarray(wave["T"], dtype=np.float64)
-dirs = np.asarray(wave["Dir"], dtype=np.float64)
-
+    wave_file = pd.read_csv(f)
 
 with open("thesis/data/tide.csv", "r", encoding="utf-8") as f:
-    tide = pd.read_csv(f)
+    tide_file = pd.read_csv(f)
 
-tide_dates = pd.to_datetime(tide["date"], format="%Y/%m/%d %H:%M:%S")
-tide_dates = [parse_date(t) for t in tide_dates]
-tide_dates = np.asarray(tide_dates, dtype=np.float64)
+xaxis = [parse_xaxis(x) for x in coast_file["xaxis"]]
+xaxis = np.asarray(xaxis, dtype=np.float64)
+series = coast_file["series"]
 
-tides = np.asarray(tide["tide"], dtype=np.float64)
+delta = N_DAYS * HOUR_N                            
+timesteps = np.arange(N_DAYS, dtype=np.float64) * HOUR_N
 
+coast_dates = np.array([parse_date(s[0]) for s in series])
+coast_values = np.array([[float(v) for v in s[1:]] for s in series])
+coasts = np.column_stack([np.interp(timesteps, coast_dates, coast_values[:, p]) for p in range(coast_values.shape[1])])
+coast_quality = np.isin(timesteps, coast_dates).astype(np.float64)
 
-def split_values(values, dates, dt):
-    dt = dt * 24
-    output = []
-    output_real = []
-    qualities = [] # check how much data is real and how much comes from interpolation
-    i = 0
-    time = 0
-    while dates[i] < time:
-        i += 1
+def hourly_measurements(file, column):
+    t = np.rint((pd.to_datetime(file["date"], format="%Y/%m/%d %H:%M:%S") - START_DATE).dt.total_seconds() / 3600).astype(int)
+    grid = np.full(delta, np.nan)
+    ok = (t >= 0) & (t < delta)
+    grid[t[ok]] = file[column].to_numpy(dtype=np.float64)[ok]      # a duplicated timestamp keeps the last record
+    if OFFSET:
+        grid = np.concatenate([grid[OFFSET:], np.full(OFFSET, np.nan)])
+    return grid.reshape(N_DAYS, HOUR_N)
 
-    sample_dates = []
+def daily_mean(grid):
+    valid = ~np.isnan(grid)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        return np.nansum(grid, axis=1) / valid.sum(axis=1) 
 
-    while dates[i] < delta:
-        sample_dates.append(time)
-        quality = dt/hour_n
-        samples = []
-        real_samples = []
-        initial_time = time
+hs = hourly_measurements(wave_file, "H") ** 2
+ts = hourly_measurements(wave_file, "T")
+dirs = np.sin(np.deg2rad(hourly_measurements(wave_file, "Dir")))
+tides = hourly_measurements(tide_file, "tide")
 
-        while time - initial_time < dt and dates[i] < delta:
-            if dates[i] == time:
-                samples.append(values[i])
-                real_samples.append(True)
-                i += 1
-            else:
-                # linear interpolation
-                quality -= 1
-                samples.append((values[i - 1] + (values[i] - values[i - 1]) * ((time - dates[i - 1]) / (dates[i] - dates[i - 1]))))
-                real_samples.append(False)
-            time += hour_n
+# the hour of the largest wave of each day; T, Dir and tide are read at that hour
+rows = np.arange(N_DAYS)
+imax = np.argmax(np.where(np.isnan(hs), -np.inf, hs), axis=1)
+no_h = np.isnan(hs).all(axis=1)
 
-        output.append(samples)
-        output_real.append(real_samples)
-        qualities.append(quality - int((dt - (time - initial_time)) / 24))
+def at_max(grid):
+    values = grid[rows, imax]
+    values[no_h] = np.nan
+    return values
 
-    if len(output[-1]) < len(output[-2]):
-        output.pop()
-        output_real.pop()
-    return output, output_real, qualities, sample_dates
+hs_mean, hs_max = daily_mean(hs), at_max(hs)
+ts_mean, ts_max = daily_mean(ts), at_max(ts)
+dirs_mean, dirs_max = daily_mean(dirs), at_max(dirs)
+tides_mean, tides_max = daily_mean(tides), at_max(tides)
 
-def split_signals(hs, ts, dirs, wave_dates, tides, tide_dates, dt):
-    dt = dt * 24
-    signals = []
-    i = 0
-    time = 0
-    while wave_dates[i] < time:
-        i += 1
-    j = 0
-    while tide_dates[j] < time:
-        j += 1
-    h_qualities = []
-    t_qualities = []
-    dir_qualities = []
-    tide_qualities = []
-    
-    while time < delta:
-        current_time = 0
-        signal = []
-        h_quality = dt
-        t_quality = dt
-        dir_quality = dt
-        tide_quality = dt
+h_quality = (~np.isnan(hs)).sum(axis=1) / WAVE_N
+t_quality = (~np.isnan(ts)).sum(axis=1) / WAVE_N
+dir_quality = (~np.isnan(dirs)).sum(axis=1) / WAVE_N
+tide_quality = (~np.isnan(tides)).sum(axis=1) / TIDE_N
 
-        while current_time < dt and time < delta:
-            subtime = 0
-            h = []
-            t = []
-            dir = []
-            tide = []
-            while subtime < hour_n:
-                if i < len(wave_dates) and wave_dates[i] == time:
-                    if not np.isnan(hs[i]):
-                        h += [hs[i] ** 2]
-                    else:
-                        h_quality -= 1
-                        if current_time > 0:
-                            h += [signal[-1][0]]
-                        elif time > 0 and subtime == 0:
-                            h += [signals[-1][-1][0]]
-                        else:
-                            h += [0.78 ** 2]
-                    if not np.isnan(ts[i]):
-                        t += [ts[i]]
-                    else:
-                        t_quality -= 1
-                        if current_time > 0:
-                            t += [signal[-1][2]]
-                        elif time > 0 and subtime == 0:
-                            t += [signals[-1][-1][2]]
-                        else:
-                            t += [6.9]
-                    if not np.isnan(dirs[i]):
-                        dir += [dirs[i]]
-                    else:
-                        dir_quality -= 1
-                        if current_time > 0:
-                            dir += [signal[-1][4]]
-                        elif time > 0 and subtime == 0:
-                            dir += [signals[-1][-1][4]]
-                        else:
-                            dir += [6.81]
-                    i += 1
-                else:
-                    h_quality -= 1
-                    t_quality -= 1
-                    dir_quality -= 1
-                    if current_time > 0:
-                        h += [signal[-1][0]]
-                        t += [signal[-1][2]]
-                        dir += [signal[-1][4]]
-                    elif time > 0 and subtime == 0:
-                        h += [signals[-1][-1][0]]
-                        t += [signals[-1][-1][2]]
-                        dir += [signals[-1][-1][4]]
-                    else:
-                        h += [0.78 ** 2]
-                        t += [6.9]
-                        dir += [6.81]
-                if j < len(tide_dates) and tide_dates[j] == time:
-                    if not np.isnan(tides[j]):
-                        tide += [tides[j]]
-                    else:
-                        tide_quality -= 1
-                        if current_time > 0:
-                            tide += [signal[-1][6]]
-                        elif time > 0 and subtime == 0:
-                            tide += [signals[-1][-1][6]]
-                        else:
-                            tide += [1.72]
-                    j += 1
-                else:
-                    tide_quality -= 1
-                    if current_time > 0:
-                        tide += [signal[-1][6]]
-                    elif time > 0 and subtime == 0:
-                        tide += [signals[-1][-1][6]]
-                    else:
-                        tide += [1.72]
-                subtime += 1
-                time += 1
+signals = np.column_stack([hs_mean, hs_max, ts_mean, ts_max, dirs_mean, dirs_max, tides_mean, tides_max])
+sign_names = ["hmean", "hmax", "tmean", "tmax", "dirmean", "dirmax", "tidemean", "tidemax"]
+print("signal percentiles (1, 99):")
+for name, column in zip(sign_names, signals.T):
+    print(f"  {name:9s}", np.round(np.nanpercentile(column, [1, 99]), 2))
 
-            current_time += hour_n
+#to avoid errors, missing signals are carried from previous values
+signals = pd.DataFrame(signals).ffill().bfill().to_numpy()
 
-            hmean = np.mean(h)
-            hmax = np.max(h)
-            hmax_index = int(np.argmax(h))
+def windows(array):
+    ws = sliding_window_view(array, DAYS_N, axis=0)
+    return np.moveaxis(ws, -1, 1)[::STRIDE]   
 
-            tmean = np.mean(t)
-            tmax = t[hmax_index]
+start_days = np.arange(0, N_DAYS - DAYS_N + 1, STRIDE)
 
-            dirmean = np.mean(dir)
-            dirmax = dir[hmax_index]
+coasts = windows(coasts)                       
+profile0 = coasts[:, 0, :].copy()        # full day-0 profile [S, P]; common.py turns it into the PCA parameters          
+output = coasts - coasts[:, :1, :]
+output = np.abs(output)
+signals = windows(signals)      
 
-            tidemean = np.mean(tide)
-            tidemax = tide[hmax_index]
+real = windows(coast_quality) > 0 
+checks = {
+    "survey": windows(coast_quality).mean(axis=1) >= MIN_SURVEY,
+    "wave": windows(h_quality).mean(axis=1) >= MIN_WAVE,
+    "period": windows(t_quality).mean(axis=1) >= MIN_PERIOD,
+    "dir": windows(dir_quality).mean(axis=1) >= MIN_DIR,
+    "tide": windows(tide_quality).mean(axis=1) >= MIN_TIDE,
+}
+if REQUIRE_START:
+    checks["start"] = real[:, 0]
+valid = np.logical_and.reduce(list(checks.values()))   
 
-            signal.append([hmean, hmax, tmean, tmax, dirmean, dirmax, tidemean, tidemax])  
+print(f"valid windows: {valid.sum()} of {len(valid)}")
+for name, ok in checks.items():
+    print(f"  passes {name:7s}: {ok.sum()}")
 
-        signals.append(signal)
-        h_qualities.append(h_quality - (dt - current_time))
-        t_qualities.append(t_quality - (dt - current_time))
-        dir_qualities.append(dir_quality - (dt - current_time))
-        tide_qualities.append(tide_quality - (dt - current_time))
-        a += 1
+# ---- dataset split: only windows that pass the quality checks (valid) are used ----
+first_day = np.datetime64(START_DATE, "D") + start_days.astype("timedelta64[D]")
+last_day = first_day + np.timedelta64(DAYS_N - 1, "D")
 
-    if len(signals[-1]) < len(signals[-2]):
-        signals.pop()
-    
-    return signals, h_qualities, t_qualities, dir_qualities, tide_qualities
+def block(day):
+    remainder = (day.astype("datetime64[Y]").astype(int) + 1970) % YEAR_BLOCK
+    return np.where(remainder == VALID_REMAINDER, 1, np.where(remainder == TEST_REMAINDER, 2, 0))
 
-output, output_real, a, sample_dates = split_values(values, coast_dates, dt)
+# 0 = train, 1 = validation, 2 = test, -1 = not used (fails the quality checks, or starts and ends in two different blocks),
+# -2 = extreme: a train or validation window with an extreme output (see EXCLUDE_TOP)
+split = np.where(valid & (block(first_day) == block(last_day)), block(first_day), -1)
+if EXCLUDE_TOP > 0:
+    observed_days = real.copy()
+    observed_days[:, 0] = False                                                    # day 0 is always 0
+    strength = np.where(observed_days, output.mean(axis=2), 0).max(axis=1)         # largest mean change over the profile, on a real survey day
+    threshold = np.quantile(strength[split == 0], 1 - EXCLUDE_TOP)                 # from the training windows only
+    extreme = (strength > threshold) & np.isin(split, (0, 1))
+    print(f"extreme windows: threshold {threshold:.1f} m (mean change over the profile), "
+          f"{np.sum(extreme & (split == 0))} train and {np.sum(extreme & (split == 1))} validation windows left out")
+    split[extreme] = -2
 
-signals, b, c, d, e = split_signals(hs, ts, dirs, wave_dates, tides, tide_dates, dt)
-
-scores = []
-for i in range(len(output)):
-    if a[i] <= 14:
-        scores.append(0)
-    else:
-        scores.append((24 * a[i] + 2 * b[i] + 2 * c[i] + 2 * d[i] + e[i]) / (24*dt*5))
-
-sample_ids = np.arange(len(output))
-quality = np.column_stack([a, b, c, d, e])
-
-order = np.argsort(np.asarray(scores))[::-1]
-
-sample_ids = sample_ids[order]
-sample_dates = np.asarray(sample_dates)[order]
-quality = quality[order]
-
-scores = np.asarray(scores, dtype=np.float64)[order]
-signals = np.asarray(signals, dtype=np.float64)[order]
-output = np.asarray(output, dtype=np.float64)[order]
-output_real = np.asarray(output_real, dtype=bool)[order]
-
-for i, score in enumerate(scores):
-    if score <= train_threshold:
-        print(f"{i}/{len(scores)} scores above {train_threshold}")
-        break
-for i, score in enumerate(scores):
-    if score <= test_threshold:
-        print(f"{i}/{len(scores)} scores above {test_threshold}")
-        break
+print(f"split: train {np.sum(split == 0)}, validation {np.sum(split == 1)}, test {np.sum(split == 2)}, "
+      f"extreme {np.sum(split == -2)}, not used {np.sum(split == -1)} (of which {np.sum(valid & (split == -1))} are good windows that cross two blocks)")
 
 dataset = {
     "x": xaxis,
     "sign": signals,
     "output": output,
-    "output_real": output_real,
-    "sample_ids": sample_ids,
-    "sample_dates": sample_dates,
-    "quality": quality,
-    "t": np.arange(dt * 24 / hour_n, dtype=np.float64) * hour_n
+    "real": real,
+    "valid": valid,
+    "split": split,
+    "profile0": profile0,
+    "sample_dates": start_days * HOUR_N,
+    "t": np.arange(DAYS_N, dtype=np.float64) * HOUR_N
 }
 
 print(dataset["x"].shape)
 print(dataset["t"].shape)
 print(dataset["output"].shape)
 print(dataset["sign"].shape)
+print(dataset["profile0"].shape)
+print(dataset["split"].shape)
 
-np.save(f"thesis/data/{filename}.npy", dataset)
+observed = real[valid].copy()
+observed[:, 0] = False
+
+print("output percentiles (1, 99):", np.round(np.percentile(np.abs(output[valid][observed]), [1, 99]), 1))
+
+np.save("thesis/data/data.npy", dataset)
 print("data converted to npy")

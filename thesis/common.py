@@ -11,12 +11,12 @@ SEED = int(os.environ.get("LDNETS_SEED", "42"))
 tf.keras.utils.set_random_seed(SEED)
 tf.config.experimental.enable_op_determinism()
 
-start_date = datetime(1997, 4, 1)
+start_date = datetime(1987, 1, 5)     # same as START_DATE in parse.py (sample_dates are hours since this day)
 dt = 24
 dt_hourly = 1
 dt_base = 24
 num_latent_states = 5
-n_PCA = 5
+n_PCA = 10
 
 problem = {
     "space": {
@@ -47,31 +47,26 @@ problem = {
 }
 
 normalization = {
-    'space': { 'min' : [-115], 'max' : [+385]},
+    'space': { 'min' : [-115], 'max' : [385]},
     'time': {
         'time_constant' : dt_base
     },
     'input_signals': {
-        'hmean': { 'min': 0.2, 'max': 22.6 },
-        'hmax': { 'min': 0.2, 'max': 63 },
+        'hmean':    { 'min': 0.22, 'max': 13.72 },
+        'hmax':     { 'min': 0.28, 'max': 22.18 },
 
-        'tmean': { 'min': 5.1, 'max': 14.7 },
-        'tmax': { 'min': 5.5, 'max': 18.1 },
+        'tmean':    { 'min': 5.37, 'max': 12.53 },
+        'tmax':     { 'min': 4.7, 'max': 13.8 },
 
-        'dirmean': { 'min': 6.8, 'max': 133 },
-        'dirmax': { 'min': 6.8, 'max': 168 },
+        'dirmean':  { 'min': 0.55, 'max': 1.00 },
+        'dirmax':   { 'min': 0.31, 'max': 1.00 },
 
-        'tidemean': { 'min': 1.4, 'max': 2.6 },
-        'tidemax': { 'min': 1.6, 'max': 3.14 }
+        'tidemean': { 'min': 1.48, 'max': 2.02 },
+        'tidemax':  { 'min': 0.87, 'max': 2.36 }
     },
-    'input_parameters': {
-        **{
-            f'height_{point}': {'min': -700, 'max': 900}
-            for point in range(n_PCA)
-        }
-    },
+    'input_parameters': {},     # PCA_0 ... PCA_n: filled by load_datasets from the training windows
     'output_fields': {
-        'y': { 'min': -700, 'max': +900 }
+        'y': { 'min': 0, 'max': 150 }
     }
 }
 
@@ -80,34 +75,58 @@ DATA_PATH = REPO_ROOT / 'thesis' / 'data' /'data.npy'
 MODEL_DIR = REPO_ROOT / 'thesis' / 'model' / 'trained_model'
 HISTORY_PATH = REPO_ROOT / 'thesis' / 'model' / 'training_history.npz'
 
+REQUIRED_KEYS = ("x", "t", "sign", "output", "profile0", "split", "sample_dates")
+
+_pca = {}    # mean profile and principal components, set by load_datasets (from the training windows)
+
+def fit_pca(profile, n_components):
+    """Principal components of the profiles [windows, points]: mean, components [n, points], % of variance explained."""
+    mean = profile.mean(axis=0)
+    _, singular, components = np.linalg.svd(profile - mean, full_matrices=False)
+    components = components[:n_components]  
+    components = components * np.sign(components[np.arange(n_components), np.abs(components).argmax(axis=1)])[:, None]   # fixed sign: same result every run
+    return mean, components, 100 * np.sum(singular[:n_components] ** 2) / np.sum(singular ** 2)
+
+def make_dataset(raw, idx):
+    """Dataset of the windows idx (rows of the data file). Needs load_datasets to have run first (PCA and normalization)."""
+    dataset = {
+        'points': raw['x'][:, None],                                            # [num_points x num_coordinates]
+        'times': raw['t'],                                                      # [num_times]
+        'inp_parameters': (raw['profile0'][idx] - _pca['mean']) @ _pca['components'].T,   # [num_samples x n_PCA]
+        'inp_signals': raw['sign'][idx],                                        # [num_samples x num_times x num_signals]
+        'out_fields': raw['output'][idx][..., None],                            # [num_samples x num_times x num_points x num_fields]
+    }
+    utils.process_dataset(dataset, problem, normalization)
+    dataset['sample_indices'] = idx
+    return dataset
+
 def load_datasets():
-    rng = np.random.default_rng(SEED)
-    a = 0
-    b = 110
-    x = 100
-    train_indices = np.sort(rng.choice(np.arange(a, b), size=x, replace=False))
-    remaining_1 = np.setdiff1d(np.arange(a, b), train_indices)
-    dataset_train = utils.MY_create_dataset(DATA_PATH, train_indices)
-    
-    a = 110
-    b = 150
-    x = 40
-    valid_indices = np.sort(rng.choice(np.arange(a, b), size=x, replace=False))
-    dataset_valid = utils.MY_create_dataset(DATA_PATH, valid_indices)
-    remaining_2 = np.setdiff1d(np.arange(a, b), valid_indices)
+    raw = np.load(DATA_PATH, allow_pickle=True)[()]
+    missing = [key for key in REQUIRED_KEYS if key not in raw]
+    if missing:
+        raise KeyError(f"{DATA_PATH} has no {missing}: run parse.py again")
 
-    test_indices = np.concatenate([remaining_1, remaining_2, np.arange(200, 240)])
-    dataset_tests = utils.MY_create_dataset(DATA_PATH, test_indices)
+    # the split comes from parse.py: 0 train, 1 validation, 2 test, -1 not used (low quality)
+    indices = [np.flatnonzero(np.asarray(raw["split"]) == k) for k in (0, 1, 2)]
+    if min(len(i) for i in indices) == 0:
+        raise ValueError(f"empty split (train {len(indices[0])}, valid {len(indices[1])}, test {len(indices[2])}): check the thresholds and the year blocks in parse.py")
+    if n_PCA > min(len(indices[0]), raw["profile0"].shape[1]):
+        raise ValueError(f"n_PCA = {n_PCA} is more than the training windows or the profile points")
 
-    utils.process_dataset(dataset_train, problem, normalization)
-    utils.process_dataset(dataset_valid, problem, normalization)
-    utils.process_dataset(dataset_tests, problem, normalization)
+    # PCA of the day-0 profile, fitted on the training windows only; each score is normalized with its training range
+    mean, components, explained = fit_pca(raw["profile0"][indices[0]], n_PCA)
+    _pca.update(mean=mean, components=components)
+    train_scores = (raw["profile0"][indices[0]] - mean) @ components.T
+    low, high = train_scores.min(axis=0), train_scores.max(axis=0)
+    high = np.maximum(high, low + 1e-6)
+    normalization['input_parameters'] = {f"PCA_{i}": {'min': float(l), 'max': float(h)} for i, (l, h) in enumerate(zip(low, high))}
+    print(f"PCA of the day-0 profile: {n_PCA} components, {explained:.0f}% of the variance of the training profiles")
 
-    dataset_train['sample_indices'] = train_indices
-    dataset_valid['sample_indices'] = valid_indices
-    dataset_tests['sample_indices'] = test_indices
-
-    return dataset_train, dataset_valid, dataset_tests
+    datasets = []
+    for name, idx in zip(("train", "valid", "test"), indices):
+        datasets.append(make_dataset(raw, idx))
+        print(f"{name:5s}: {len(idx)} windows")
+    return tuple(datasets)
 
 class LDNetModel:
     def __init__(
