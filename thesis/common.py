@@ -1,4 +1,5 @@
 import os
+import json
 from pathlib import Path
 from network import utils
 import numpy as np
@@ -11,12 +12,17 @@ SEED = int(os.environ.get("LDNETS_SEED", "42"))
 tf.keras.utils.set_random_seed(SEED)
 tf.config.experimental.enable_op_determinism()
 
-start_date = datetime(1987, 1, 5)     # same as START_DATE in parse.py (sample_dates are hours since this day)
+START_DATE = datetime(1987, 1, 5) 
 dt = 24
-dt_hourly = 1
 dt_base = 24
 num_latent_states = 5
 n_PCA = 10
+dyn_width = 32
+rec_width = 24
+num_epochs_Adam = 3000
+num_epochs_BFGS = 1000
+weight_direction = 0.1
+learning_rate = 1e-3   
 
 problem = {
     "space": {
@@ -26,7 +32,8 @@ problem = {
         *[
             {"name": f"PCA_{point}"}
             for point in range(n_PCA)
-        ]
+        ],
+        {"name": "season_sin"}
     ],
     "input_signals": [
         { "name": "hmean" },
@@ -47,7 +54,7 @@ problem = {
 }
 
 normalization = {
-    'space': { 'min' : [-115], 'max' : [385]},
+    'space': { 'min' : [-115], 'max' : [+385]},
     'time': {
         'time_constant' : dt_base
     },
@@ -66,14 +73,20 @@ normalization = {
     },
     'input_parameters': {},     # PCA_0 ... PCA_n: filled by load_datasets from the training windows
     'output_fields': {
-        'y': { 'min': 0, 'max': 150 }
+        'y': { 'min': 0, 'max': +150 }
     }
 }
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DATA_PATH = REPO_ROOT / 'thesis' / 'data' /'data.npy'
-MODEL_DIR = REPO_ROOT / 'thesis' / 'model' / 'trained_model'
-HISTORY_PATH = REPO_ROOT / 'thesis' / 'model' / 'training_history.npz'
+
+RUN_TAG = "stride7"  # optional tag to distinguish runs with the same settings
+_season = "-".join(p['name'][len("season_"):] for p in problem['input_parameters'] if p['name'].startswith("season_")) or "none"
+RUN_NAME = (f"lat{num_latent_states}_pca{n_PCA}_season-{_season}_w{dyn_width}x{rec_width}_lr{learning_rate:g}_dir{weight_direction:g}"
+            f"_adam{num_epochs_Adam}_bfgs{num_epochs_BFGS}_seed{SEED}" + (f"_{RUN_TAG}" if RUN_TAG else ""))
+RUN_DIR = REPO_ROOT / 'thesis' / 'model' / RUN_NAME
+MODEL_DIR = RUN_DIR / 'trained_model'
+HISTORY_PATH = RUN_DIR / 'training_history.npz'
 
 REQUIRED_KEYS = ("x", "t", "sign", "output", "profile0", "split", "sample_dates")
 
@@ -87,17 +100,30 @@ def fit_pca(profile, n_components):
     components = components * np.sign(components[np.arange(n_components), np.abs(components).argmax(axis=1)])[:, None]   # fixed sign: same result every run
     return mean, components, 100 * np.sum(singular[:n_components] ** 2) / np.sum(singular ** 2)
 
+SEASON_COLUMNS = {"season_sin": 0, "season_cos": 1}      # columns of raw['season'] (written by parse.py)
+
+def parameters(raw, idx):
+    """Parameters of the windows idx: the PCA scores of the day-0 profile, then the season columns that problem['input_parameters'] lists."""
+    scores = (raw['profile0'][idx] - _pca['mean']) @ _pca['components'].T
+    season = [raw['season'][idx][:, SEASON_COLUMNS[p['name']]] for p in problem['input_parameters'] if p['name'] in SEASON_COLUMNS]
+    return np.concatenate([scores, np.stack(season, axis=1)], axis=1) if season else scores
+
 def make_dataset(raw, idx):
     """Dataset of the windows idx (rows of the data file). Needs load_datasets to have run first (PCA and normalization)."""
+    params = parameters(raw, idx)
     dataset = {
         'points': raw['x'][:, None],                                            # [num_points x num_coordinates]
         'times': raw['t'],                                                      # [num_times]
-        'inp_parameters': (raw['profile0'][idx] - _pca['mean']) @ _pca['components'].T,   # [num_samples x n_PCA]
+        'inp_parameters': params if params.shape[1] > 0 else None,              # [num_samples x (n_PCA + 2 if use_season)]
         'inp_signals': raw['sign'][idx],                                        # [num_samples x num_times x num_signals]
         'out_fields': raw['output'][idx][..., None],                            # [num_samples x num_times x num_points x num_fields]
     }
     utils.process_dataset(dataset, problem, normalization)
     dataset['sample_indices'] = idx
+    real = np.asarray(raw['real'])[idx]
+    mask = real & real[:, :1]            # days with a real survey (and a real survey on day 0), day 0 itself excluded: used by report(), not by the loss
+    mask[:, 0] = False
+    dataset['mask'] = tf.convert_to_tensor(mask, tf.float64)
     return dataset
 
 def load_datasets():
@@ -120,6 +146,7 @@ def load_datasets():
     low, high = train_scores.min(axis=0), train_scores.max(axis=0)
     high = np.maximum(high, low + 1e-6)
     normalization['input_parameters'] = {f"PCA_{i}": {'min': float(l), 'max': float(h)} for i, (l, h) in enumerate(zip(low, high))}
+    normalization['input_parameters'].update(season_sin={'min': -1.0, 'max': 1.0}, season_cos={'min': -1.0, 'max': 1.0})
     print(f"PCA of the day-0 profile: {n_PCA} components, {explained:.0f}% of the variance of the training profiles")
 
     datasets = []
@@ -148,18 +175,18 @@ class LDNetModel:
         input_shape_dyn = (num_latent_states + len(problem['input_parameters']) + len(problem['input_signals']),)
         self.NNdyn = tf.keras.Sequential([
             tf.keras.Input(shape=input_shape_dyn),
-            tf.keras.layers.Dense(32, activation=tf.nn.tanh),
-            tf.keras.layers.Dense(32, activation=tf.nn.tanh),
+            tf.keras.layers.Dense(dyn_width, activation=tf.nn.tanh),
+            tf.keras.layers.Dense(dyn_width, activation=tf.nn.tanh),
             tf.keras.layers.Dense(num_latent_states)
         ])
 
         input_shape_rec = (None, None, num_latent_states + len(problem['input_signals']) + problem['space']['dimension'])
         self.NNrec = tf.keras.Sequential([
             tf.keras.Input(shape=input_shape_rec),
-            tf.keras.layers.Dense(24, activation=tf.nn.tanh),
-            tf.keras.layers.Dense(24, activation=tf.nn.tanh),
-            tf.keras.layers.Dense(24, activation=tf.nn.tanh),
-            tf.keras.layers.Dense(24, activation=tf.nn.tanh),
+            tf.keras.layers.Dense(rec_width, activation=tf.nn.tanh),
+            tf.keras.layers.Dense(rec_width, activation=tf.nn.tanh),
+            tf.keras.layers.Dense(rec_width, activation=tf.nn.tanh),
+            tf.keras.layers.Dense(rec_width, activation=tf.nn.tanh),
             tf.keras.layers.Dense(len(problem['output_fields']))
         ])
  
@@ -172,13 +199,17 @@ class LDNetModel:
         return self.NNdyn.variables + self.NNrec.variables
  
     def evolve_dynamics(self, dataset):
+        if len(self.problem['input_parameters']) > 0:
+            parameters = dataset['inp_parameters']
+        else:
+            parameters = tf.zeros((dataset['num_samples'], 0), dtype=tf.float64)
         state = tf.zeros((dataset['num_samples'], self.num_latent_states), dtype=tf.float64)
         state_history = tf.TensorArray(tf.float64, size=dataset['num_times'])
         state_history = state_history.write(0, state)
         dt_ref = self.normalization['time']['time_constant']
  
         for i in tf.range(dataset['num_times'] - 1):
-            state = state + self.dt / dt_ref * self.NNdyn(tf.concat([state, dataset['inp_parameters'], dataset['inp_signals'][:, i, :]], axis=-1))
+            state = state + self.dt / dt_ref * self.NNdyn(tf.concat([state, parameters, dataset['inp_signals'][:, i, :]], axis=-1))
             state_history = state_history.write(i + 1, state)
  
         return tf.transpose(state_history.stack(), perm=(1, 0, 2))
@@ -266,8 +297,7 @@ class LDNetModel:
         model.NNrec = tf.keras.models.load_model(str(model_dir / 'NNrec.keras'))
         return model
 
-weight_direction = 0.1
-epsilon = 1e-4
+epsilon = 1e-4                  # (weight_direction is one of the settings at the top)
 
 def get_direction(velocity):
     return tf.math.divide(velocity, (epsilon + tf.expand_dims(tf.norm(velocity, axis=3), axis=-1)))
@@ -285,3 +315,51 @@ def make_loss_fn(
         MSE_direction = tf.reduce_mean(tf.square(direction - target_direction))
         return MSE_velocity + weight_direction * MSE_direction
     return loss_fn
+
+# ---- evaluation (used by train.py and visualize.py; not part of the training) ----
+PREDICT_CHUNK = 25      # windows per forward pass when predicting
+
+def to_units(field):
+    """Normalized field [S, T, P, 1] -> physical units [S, T, P]."""
+    return utils.denormalize_output(field, problem, normalization).numpy()[..., 0]
+
+def predict(model, dataset, chunk=PREDICT_CHUNK):
+    """Model output and target in physical units, both [S, T, P]."""
+    parts = []
+    parameters = dataset.get('inp_parameters')
+    for start in range(0, int(dataset['num_samples']), chunk):
+        signals = dataset['inp_signals'][start:start + chunk]
+        sub = dict(num_samples=int(signals.shape[0]), num_times=dataset['num_times'], num_points=dataset['num_points'],
+                   inp_signals=signals, points_full=dataset['points_full'][start:start + chunk])
+        if parameters is not None:
+            sub['inp_parameters'] = parameters[start:start + chunk]
+        parts.append(model(sub))
+    return to_units(tf.concat(parts, axis=0)), to_units(dataset['out_fields'])
+
+def rmse(error, mask):
+    """Root mean square of error [S, T, P] over the days of mask [S, T] (all points)."""
+    return float(np.sqrt(np.mean(np.square(error[mask])))) if mask.any() else float('nan')
+
+def report(model, dataset_train, dataset_valid, dataset_tests, top_share=0.1):
+    """RMSE (physical units, observed days only) of the model against two baselines that use no forcing:
+    'zero' (nothing changes) and 'mean' (the average change of the training windows, by day and point).
+    'top' = the windows with the largest mean |change| (top_share of them): the extreme events."""
+    mask_train = dataset_train['mask'].numpy() > 0
+    _, target_train = predict(model, dataset_train)
+    mean_change = np.stack([target_train[:, k][mask_train[:, k]].mean(axis=0) if mask_train[:, k].any() else np.zeros(target_train.shape[2])
+                            for k in range(target_train.shape[1])])                       # [T, P]
+    rows = []
+    for name, dataset in (("train", dataset_train), ("valid", dataset_valid), ("test", dataset_tests)):
+        prediction, target = predict(model, dataset)
+        mask = dataset['mask'].numpy() > 0
+        strength = (np.abs(target) * mask[..., None]).sum(axis=(1, 2)) / np.maximum(mask.sum(axis=1) * target.shape[2], 1)
+        top = mask & (strength >= np.quantile(strength[mask.any(axis=1)], 1 - top_share))[:, None]
+        errors = [prediction - target, -target, mean_change[None] - target]               # model, zero, mean
+        rows.append((name, *[rmse(e, mask) for e in errors], *[rmse(e, top) for e in errors[:2]]))
+    print(f"{'':6s}{'model':>9s}{'zero':>9s}{'mean':>9s}{'vs zero':>9s}{'vs mean':>9s} | top {int(top_share * 100)}%:{'model':>8s}{'zero':>9s}{'vs zero':>9s}")
+    for name, m, z, mean, mt, zt in rows:
+        print(f"{name:6s}{m:9.2f}{z:9.2f}{mean:9.2f}{1 - m**2 / z**2:9.2f}{1 - m**2 / mean**2:9.2f} |{'':9s}{mt:8.2f}{zt:9.2f}{1 - mt**2 / zt**2:9.2f}")
+    print("vs zero / vs mean = 1 - MSE(model) / MSE(baseline), above 0 means better than the baseline. 'mean' = the average change of the training windows (day by day, point by point), no forcing.")
+    return {name: {"rmse_model": m, "rmse_zero": z, "rmse_mean": mean, "vs_zero": 1 - m**2 / z**2, "vs_mean": 1 - m**2 / mean**2,
+                   "top_rmse_model": mt, "top_rmse_zero": zt, "top_vs_zero": 1 - mt**2 / zt**2}
+            for name, m, z, mean, mt, zt in rows}

@@ -62,7 +62,11 @@ print('Pearson dissimilarity: %1.3e' % (1 - R_coeff[0]))
 
 raw_dataset = np.load(data_path, allow_pickle=True).item()
 x_values = raw_dataset["x"]
-valid_indices = np.flatnonzero(raw_dataset["valid"])           # the windows that pass the quality checks, in date order
+split_of_window = np.asarray(raw_dataset["split"])
+valid_indices = np.flatnonzero(raw_dataset["valid"] | (split_of_window == 3))     # the windows that pass the quality checks, plus the low-quality test windows, in date order
+real = np.asarray(raw_dataset["real"])[valid_indices]                              # a real survey on that day (otherwise the original is interpolated)
+check_names = list(raw_dataset["check_names"])
+failed_checks = [", ".join(name for name, ok in zip(check_names, row) if not ok) for row in np.asarray(raw_dataset["checks"])[valid_indices]]
 
 dataset_all = common.make_dataset(raw_dataset, valid_indices)
 
@@ -78,8 +82,8 @@ out_fields_ROM = utils.denormalize_output(
 sample_dates = raw_dataset["sample_dates"][valid_indices]
 signals_normalized = dataset_all["inp_signals"].numpy()
 
-split_names = np.array(["extreme (left out)", "not used", "train", "validation", "test"])      # split: -2, -1, 0, 1, 2 (written by parse.py)
-dataset_splits = split_names[np.asarray(raw_dataset["split"])[valid_indices] + 2]
+split_names = np.array(["extreme (left out)", "not used", "train", "validation", "test", "test, LOW QUALITY"])      # split: -2, -1, 0, 1, 2, 3 (written by parse.py)
+dataset_splits = split_names[split_of_window[valid_indices] + 2]
 
 # %%
 num_samples, num_days = out_fields_FOM.shape[:2]
@@ -153,6 +157,7 @@ def draw_frame(frame):
     sample_idx, day_idx = divmod(int(frame), num_days)
 
     fom.set_ydata(out_fields_FOM[sample_idx, day_idx, :, 0])
+    fom.set_alpha(1.0 if real[sample_idx, day_idx] else 0.3)         # faded: interpolated day, not a real survey
 
     rom_frame = out_fields_ROM[sample_idx, day_idx, :, 0]
     rom.set_ydata(rom_frame)
@@ -162,12 +167,14 @@ def draw_frame(frame):
         bar.set_width(value)
 
     sample_start_hours = sample_dates[sample_idx]
-    date = common.start_date + timedelta(hours=float(sample_start_hours))
+    date = common.START_DATE + timedelta(hours=float(sample_start_hours))
 
     dataset_split = dataset_splits[sample_idx]
 
+    survey = "real survey" if real[sample_idx, day_idx] else "interpolated"
+    failed = f" | failed: {failed_checks[sample_idx]}" if failed_checks[sample_idx] else ""
     date_text.set_text(
-        f"{date:%Y-%m-%d} | day {day_idx + 1}/{num_days} | {dataset_split}"
+        f"{date:%Y-%m-%d} | day {day_idx + 1}/{num_days} | {dataset_split} | {survey}{failed}"
     )
 
 

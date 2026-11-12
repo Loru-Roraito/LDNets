@@ -1,0 +1,24 @@
+{
+  "num_latent_states": 5,
+  "n_PCA": 10,
+  "dyn_width": 32,
+  "rec_width": 24,
+  "weight_direction": 0.1,
+  "learning_rate": 0.001,
+  "num_epochs_Adam": 3000,
+  "num_epochs_BFGS": 1000,
+  "SEED": 42,
+  "input_parameters": [
+    "PCA_0",
+    "PCA_1",
+    "PCA_2",
+    "PCA_3",
+    "PCA_4",
+    "PCA_5",
+    "PCA_6",
+    "PCA_7",
+    "PCA_8",
+    "PCA_9",
+    "season_sin"
+  ]
+}

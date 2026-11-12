@@ -20,17 +20,17 @@ STRIDE = 7  # stride between windows (1 = daily)
 # minimum average values for a window to be valid
 MIN_SURVEY = 0.5
 MIN_WAVE = 9 / 12 
-MIN_PERIOD = 3 / 12  
-MIN_DIR =  3 / 12    
-MIN_TIDE = 6 / 24
+MIN_PERIOD = 9 / 12  
+MIN_DIR =  9 / 12    
+MIN_TIDE = 18 / 24
 REQUIRE_START = True   # day 0 must be a real survey
 # split by blocks of years (the windows overlap, so a random split would leak): remainder of (year % YEAR_BLOCK)
 YEAR_BLOCK = 5
 VALID_REMAINDER = 1   # years 1991, 1996, 2001, ... -> validation
 TEST_REMAINDER = 4    # years 1994, 1999, 2004, ... -> test, all others -> training
-EXCLUDE_TOP = 0.01    # training and validation windows with the largest change (top 1%, threshold from the training windows) are left out; 0 = keep all. Test is never filtered.
+EXCLUDE_TOP = 0       # training and validation windows with the largest change (top 5%, threshold from the training windows) are left out; 0 = keep all. Test is never filtered.
 
-START_DATE = datetime(1987, 1, 5)
+START_DATE = common.START_DATE
 END_DATE = datetime(2024, 12, 24)
 N_DAYS = (END_DATE - START_DATE).days + 1
 
@@ -142,6 +142,11 @@ for name, ok in checks.items():
 first_day = np.datetime64(START_DATE, "D") + start_days.astype("timedelta64[D]")
 last_day = first_day + np.timedelta64(DAYS_N - 1, "D")
 
+# seasonality of the window: day of the year of its first day, as a point on a circle (31 December and 1 January are neighbours)
+day_of_year = (first_day - first_day.astype("datetime64[Y]")).astype(int)
+angle = 2 * np.pi * day_of_year / 365.25
+season = np.stack([np.sin(angle), np.cos(angle)], axis=1)       # [S, 2]
+
 def block(day):
     remainder = (day.astype("datetime64[Y]").astype(int) + 1970) % YEAR_BLOCK
     return np.where(remainder == VALID_REMAINDER, 1, np.where(remainder == TEST_REMAINDER, 2, 0))
@@ -159,8 +164,13 @@ if EXCLUDE_TOP > 0:
           f"{np.sum(extreme & (split == 0))} train and {np.sum(extreme & (split == 1))} validation windows left out")
     split[extreme] = -2
 
+# test years: windows that fail the quality checks are kept apart (3). They are never used for training, validation or the test score;
+# visualize.py shows them, to see how the model does on poor data.
+low_quality = ~valid & (block(first_day) == 2) & (block(last_day) == 2)
+split[low_quality] = 3
+
 print(f"split: train {np.sum(split == 0)}, validation {np.sum(split == 1)}, test {np.sum(split == 2)}, "
-      f"extreme {np.sum(split == -2)}, not used {np.sum(split == -1)} (of which {np.sum(valid & (split == -1))} are good windows that cross two blocks)")
+      f"low-quality test windows {np.sum(split == 3)}, extreme {np.sum(split == -2)}, not used {np.sum(split == -1)} (of which {np.sum(valid & (split == -1))} are good windows that cross two blocks)")
 
 dataset = {
     "x": xaxis,
@@ -169,6 +179,9 @@ dataset = {
     "real": real,
     "valid": valid,
     "split": split,
+    "checks": np.stack(list(checks.values()), axis=1),      # [S, number of checks]: True where the window passes that check
+    "check_names": list(checks.keys()),
+    "season": season,
     "profile0": profile0,
     "sample_dates": start_days * HOUR_N,
     "t": np.arange(DAYS_N, dtype=np.float64) * HOUR_N
@@ -180,6 +193,7 @@ print(dataset["output"].shape)
 print(dataset["sign"].shape)
 print(dataset["profile0"].shape)
 print(dataset["split"].shape)
+print(dataset["season"].shape)
 
 observed = real[valid].copy()
 observed[:, 0] = False
