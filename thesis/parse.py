@@ -17,21 +17,20 @@ WAVE_N = 12 # number of expected wave measurements per day
 TIDE_N = 24 # number of expected tide measurements per day
 OFFSET = 10 # 10 = windows from 10:00 to 10:00 (aligned with the survey), 0 = calendar days
 STRIDE = 7  # stride between windows (1 = daily)
-# minimum average values for a window to be valid
+# minimum share of values for a window to be valid
 MIN_SURVEY = 0.5
 MIN_WAVE = 9 / 12 
 MIN_PERIOD = 9 / 12  
 MIN_DIR =  9 / 12    
 MIN_TIDE = 18 / 24
 REQUIRE_START = True   # day 0 must be a real survey
-# split by blocks of years (the windows overlap, so a random split would leak): remainder of (year % YEAR_BLOCK)
+# split by blocks of years
 YEAR_BLOCK = 5
-VALID_REMAINDER = 1   # years 1991, 1996, 2001, ... -> validation
-TEST_REMAINDER = 4    # years 1994, 1999, 2004, ... -> test, all others -> training
-EXCLUDE_TOP = 0       # training and validation windows with the largest change (top 5%, threshold from the training windows) are left out; 0 = keep all. Test is never filtered.
+VALID_REMAINDER = 1   # validation
+TEST_REMAINDER = 4    # test, all others are training
 
 START_DATE = common.START_DATE
-END_DATE = datetime(2024, 12, 24)
+END_DATE = common.END_DATE
 N_DAYS = (END_DATE - START_DATE).days + 1
 
 def parse_xaxis(value):
@@ -66,7 +65,7 @@ def hourly_measurements(file, column):
     t = np.rint((pd.to_datetime(file["date"], format="%Y/%m/%d %H:%M:%S") - START_DATE).dt.total_seconds() / 3600).astype(int)
     grid = np.full(delta, np.nan)
     ok = (t >= 0) & (t < delta)
-    grid[t[ok]] = file[column].to_numpy(dtype=np.float64)[ok]      # a duplicated timestamp keeps the last record
+    grid[t[ok]] = file[column].to_numpy(dtype=np.float64)[ok]
     if OFFSET:
         grid = np.concatenate([grid[OFFSET:], np.full(OFFSET, np.nan)])
     return grid.reshape(N_DAYS, HOUR_N)
@@ -81,7 +80,7 @@ ts = hourly_measurements(wave_file, "T")
 dirs = np.sin(np.deg2rad(hourly_measurements(wave_file, "Dir")))
 tides = hourly_measurements(tide_file, "tide")
 
-# the hour of the largest wave of each day; T, Dir and tide are read at that hour
+# values measured in correspondance of the highest H
 rows = np.arange(N_DAYS)
 imax = np.argmax(np.where(np.isnan(hs), -np.inf, hs), axis=1)
 no_h = np.isnan(hs).all(axis=1)
@@ -107,7 +106,7 @@ print("signal percentiles (1, 99):")
 for name, column in zip(sign_names, signals.T):
     print(f"  {name:9s}", np.round(np.nanpercentile(column, [1, 99]), 2))
 
-#to avoid errors, missing signals are carried from previous values
+# missing signals are carried from previous values
 signals = pd.DataFrame(signals).ffill().bfill().to_numpy()
 
 def windows(array):
@@ -117,7 +116,7 @@ def windows(array):
 start_days = np.arange(0, N_DAYS - DAYS_N + 1, STRIDE)
 
 coasts = windows(coasts)                       
-profile0 = coasts[:, 0, :].copy()        # full day-0 profile [S, P]; common.py turns it into the PCA parameters          
+profile0 = coasts[:, 0, :].copy()        # PCA transformed by common.load_datasets() in train.py
 output = coasts - coasts[:, :1, :]
 output = np.abs(output)
 signals = windows(signals)      
@@ -138,39 +137,27 @@ print(f"valid windows: {valid.sum()} of {len(valid)}")
 for name, ok in checks.items():
     print(f"  passes {name:7s}: {ok.sum()}")
 
-# ---- dataset split: only windows that pass the quality checks (valid) are used ----
+# quality check
 first_day = np.datetime64(START_DATE, "D") + start_days.astype("timedelta64[D]")
 last_day = first_day + np.timedelta64(DAYS_N - 1, "D")
 
-# seasonality of the window: day of the year of its first day, as a point on a circle (31 December and 1 January are neighbours)
+# seasonality (as a circle)
 day_of_year = (first_day - first_day.astype("datetime64[Y]")).astype(int)
 angle = 2 * np.pi * day_of_year / 365.25
-season = np.stack([np.sin(angle), np.cos(angle)], axis=1)       # [S, 2]
+season = np.stack([np.sin(angle), np.cos(angle)], axis=1)
 
 def block(day):
     remainder = (day.astype("datetime64[Y]").astype(int) + 1970) % YEAR_BLOCK
     return np.where(remainder == VALID_REMAINDER, 1, np.where(remainder == TEST_REMAINDER, 2, 0))
 
-# 0 = train, 1 = validation, 2 = test, -1 = not used (fails the quality checks, or starts and ends in two different blocks),
-# -2 = extreme: a train or validation window with an extreme output (see EXCLUDE_TOP)
+# 0 = train, 1 = validation, 2 = test, -1 = not used (fails the quality checks, or starts and ends in two different blocks)
 split = np.where(valid & (block(first_day) == block(last_day)), block(first_day), -1)
-if EXCLUDE_TOP > 0:
-    observed_days = real.copy()
-    observed_days[:, 0] = False                                                    # day 0 is always 0
-    strength = np.where(observed_days, output.mean(axis=2), 0).max(axis=1)         # largest mean change over the profile, on a real survey day
-    threshold = np.quantile(strength[split == 0], 1 - EXCLUDE_TOP)                 # from the training windows only
-    extreme = (strength > threshold) & np.isin(split, (0, 1))
-    print(f"extreme windows: threshold {threshold:.1f} m (mean change over the profile), "
-          f"{np.sum(extreme & (split == 0))} train and {np.sum(extreme & (split == 1))} validation windows left out")
-    split[extreme] = -2
 
-# test years: windows that fail the quality checks are kept apart (3). They are never used for training, validation or the test score;
-# visualize.py shows them, to see how the model does on poor data.
 low_quality = ~valid & (block(first_day) == 2) & (block(last_day) == 2)
 split[low_quality] = 3
 
 print(f"split: train {np.sum(split == 0)}, validation {np.sum(split == 1)}, test {np.sum(split == 2)}, "
-      f"low-quality test windows {np.sum(split == 3)}, extreme {np.sum(split == -2)}, not used {np.sum(split == -1)} (of which {np.sum(valid & (split == -1))} are good windows that cross two blocks)")
+      f"low-quality test windows {np.sum(split == 3)}, not used {np.sum(split == -1)} (of which {np.sum(valid & (split == -1))} are good windows that cross two blocks)")
 
 dataset = {
     "x": xaxis,
@@ -179,7 +166,7 @@ dataset = {
     "real": real,
     "valid": valid,
     "split": split,
-    "checks": np.stack(list(checks.values()), axis=1),      # [S, number of checks]: True where the window passes that check
+    "checks": np.stack(list(checks.values()), axis=1), 
     "check_names": list(checks.keys()),
     "season": season,
     "profile0": profile0,

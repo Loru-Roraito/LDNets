@@ -50,7 +50,6 @@ plt.show()
 # %%
 out_fields = model(dataset_tests)
  
-# Since the LDNet works with normalized data, we map back the outputs into the original ranges.
 out_fields_FOM = utils.denormalize_output(dataset_tests['out_fields'], common.problem, common.normalization).numpy()
 out_fields_ROM = utils.denormalize_output(out_fields, common.problem, common.normalization).numpy()
  
@@ -60,11 +59,13 @@ R_coeff = stats.pearsonr(np.reshape(out_fields_ROM, (-1,)), np.reshape(out_field
 print('Normalized RMSE:       %1.3e' % NRMSE)
 print('Pearson dissimilarity: %1.3e' % (1 - R_coeff[0]))
 
+# TODO: check visualization
+
 raw_dataset = np.load(data_path, allow_pickle=True).item()
 x_values = raw_dataset["x"]
 split_of_window = np.asarray(raw_dataset["split"])
-valid_indices = np.flatnonzero(raw_dataset["valid"] | (split_of_window == 3))     # the windows that pass the quality checks, plus the low-quality test windows, in date order
-real = np.asarray(raw_dataset["real"])[valid_indices]                              # a real survey on that day (otherwise the original is interpolated)
+valid_indices = np.flatnonzero(raw_dataset["valid"] | (split_of_window == 3))   
+real = np.asarray(raw_dataset["real"])[valid_indices]                     
 check_names = list(raw_dataset["check_names"])
 failed_checks = [", ".join(name for name, ok in zip(check_names, row) if not ok) for row in np.asarray(raw_dataset["checks"])[valid_indices]]
 
@@ -82,7 +83,7 @@ out_fields_ROM = utils.denormalize_output(
 sample_dates = raw_dataset["sample_dates"][valid_indices]
 signals_normalized = dataset_all["inp_signals"].numpy()
 
-split_names = np.array(["extreme (left out)", "not used", "train", "validation", "test", "test, LOW QUALITY"])      # split: -2, -1, 0, 1, 2, 3 (written by parse.py)
+split_names = np.array(["extreme", "not used", "train", "validation", "test", "test, LOW QUALITY"])
 dataset_splits = split_names[split_of_window[valid_indices] + 2]
 
 # %%
@@ -94,10 +95,8 @@ value_range = np.max(out_fields_FOM) - np.min(out_fields_FOM)
 nrmse_values = rmse_values / max(float(value_range), 1e-12)
 nrmse_max = max(float(nrmse_values.max()), 1e-12)
 
-fig, (ax, quality_ax, rmse_ax) = plt.subplots(
-    1, 3,
-    figsize=(11, 5),
-    gridspec_kw={"width_ratios": [4, 1, 0.65]},
+fig, ax = plt.subplots(
+    figsize=(11, 5)
 )
 fom, = ax.plot(
     x_values,
@@ -113,24 +112,6 @@ rom, = ax.plot(
 ax.set_ylim(out_fields_FOM.min(), out_fields_FOM.max())
 ax.set_xlim(x_values.min(), x_values.max())
 ax.legend()
-
-signal_labels = [signal["name"] for signal in problem["input_signals"]]
-
-signal_bars = quality_ax.barh(
-    signal_labels,
-    signals_normalized[0, 0],
-)
-
-quality_ax.set_xlim(-1.5, 1.5)
-quality_ax.axvline(0, color="gray", linewidth=0.5)
-quality_ax.set_xlabel("signals (normalized)")
-quality_ax.invert_yaxis()
-
-rmse_bar = rmse_ax.bar([0], [nrmse_values[0, 0]], width=0.6)
-rmse_ax.set_ylim(0, nrmse_max * 1.05)
-rmse_ax.set_xlim(-0.6, 0.6)
-rmse_ax.set_xticks([])
-rmse_ax.set_ylabel("NRMSE")
 
 date_text = fig.suptitle("")
 
@@ -157,14 +138,10 @@ def draw_frame(frame):
     sample_idx, day_idx = divmod(int(frame), num_days)
 
     fom.set_ydata(out_fields_FOM[sample_idx, day_idx, :, 0])
-    fom.set_alpha(1.0 if real[sample_idx, day_idx] else 0.3)         # faded: interpolated day, not a real survey
+    fom.set_alpha(1.0 if real[sample_idx, day_idx] else 0.3)      
 
     rom_frame = out_fields_ROM[sample_idx, day_idx, :, 0]
     rom.set_ydata(rom_frame)
-    rmse_bar[0].set_height(nrmse_values[sample_idx, day_idx])
-
-    for bar, value in zip(signal_bars, signals_normalized[sample_idx, day_idx]):
-        bar.set_width(value)
 
     sample_start_hours = sample_dates[sample_idx]
     date = common.START_DATE + timedelta(hours=float(sample_start_hours))
@@ -176,7 +153,6 @@ def draw_frame(frame):
     date_text.set_text(
         f"{date:%Y-%m-%d} | day {day_idx + 1}/{num_days} | {dataset_split} | {survey}{failed}"
     )
-
 
 def update(frame):
     global current_frame

@@ -12,7 +12,8 @@ SEED = int(os.environ.get("LDNETS_SEED", "42"))
 tf.keras.utils.set_random_seed(SEED)
 tf.config.experimental.enable_op_determinism()
 
-START_DATE = datetime(1987, 1, 5) 
+START_DATE = datetime(1987, 1, 5)
+END_DATE = datetime(2024, 12, 24)
 dt = 24
 dt_base = 24
 num_latent_states = 5
@@ -71,7 +72,7 @@ normalization = {
         'tidemean': { 'min': 1.48, 'max': 2.02 },
         'tidemax':  { 'min': 0.87, 'max': 2.36 }
     },
-    'input_parameters': {},     # PCA_0 ... PCA_n: filled by load_datasets from the training windows
+    'input_parameters': {},     # filled by load_datasets
     'output_fields': {
         'y': { 'min': 0, 'max': +150 }
     }
@@ -81,8 +82,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DATA_PATH = REPO_ROOT / 'thesis' / 'data' /'data.npy'
 
 RUN_TAG = "stride7"  # optional tag to distinguish runs with the same settings
-_season = "-".join(p['name'][len("season_"):] for p in problem['input_parameters'] if p['name'].startswith("season_")) or "none"
-RUN_NAME = (f"lat{num_latent_states}_pca{n_PCA}_season-{_season}_w{dyn_width}x{rec_width}_lr{learning_rate:g}_dir{weight_direction:g}"
+season = "-".join(p['name'][len("season_"):] for p in problem['input_parameters'] if p['name'].startswith("season_")) or "none"
+RUN_NAME = (f"lat{num_latent_states}_pca{n_PCA}_season-{season}_w{dyn_width}x{rec_width}_lr{learning_rate:g}_dir{weight_direction:g}"
             f"_adam{num_epochs_Adam}_bfgs{num_epochs_BFGS}_seed{SEED}" + (f"_{RUN_TAG}" if RUN_TAG else ""))
 RUN_DIR = REPO_ROOT / 'thesis' / 'model' / RUN_NAME
 MODEL_DIR = RUN_DIR / 'trained_model'
@@ -90,7 +91,9 @@ HISTORY_PATH = RUN_DIR / 'training_history.npz'
 
 REQUIRED_KEYS = ("x", "t", "sign", "output", "profile0", "split", "sample_dates")
 
-_pca = {}    # mean profile and principal components, set by load_datasets (from the training windows)
+
+# TODO: check PCA
+pca = {}
 
 def fit_pca(profile, n_components):
     """Principal components of the profiles [windows, points]: mean, components [n, points], % of variance explained."""
@@ -100,16 +103,14 @@ def fit_pca(profile, n_components):
     components = components * np.sign(components[np.arange(n_components), np.abs(components).argmax(axis=1)])[:, None]   # fixed sign: same result every run
     return mean, components, 100 * np.sum(singular[:n_components] ** 2) / np.sum(singular ** 2)
 
-SEASON_COLUMNS = {"season_sin": 0, "season_cos": 1}      # columns of raw['season'] (written by parse.py)
+SEASON_COLUMNS = {"season_sin": 0, "season_cos": 1} 
 
 def parameters(raw, idx):
-    """Parameters of the windows idx: the PCA scores of the day-0 profile, then the season columns that problem['input_parameters'] lists."""
-    scores = (raw['profile0'][idx] - _pca['mean']) @ _pca['components'].T
+    scores = (raw['profile0'][idx] - pca['mean']) @ pca['components'].T
     season = [raw['season'][idx][:, SEASON_COLUMNS[p['name']]] for p in problem['input_parameters'] if p['name'] in SEASON_COLUMNS]
     return np.concatenate([scores, np.stack(season, axis=1)], axis=1) if season else scores
 
 def make_dataset(raw, idx):
-    """Dataset of the windows idx (rows of the data file). Needs load_datasets to have run first (PCA and normalization)."""
     params = parameters(raw, idx)
     dataset = {
         'points': raw['x'][:, None],                                            # [num_points x num_coordinates]
@@ -121,7 +122,7 @@ def make_dataset(raw, idx):
     utils.process_dataset(dataset, problem, normalization)
     dataset['sample_indices'] = idx
     real = np.asarray(raw['real'])[idx]
-    mask = real & real[:, :1]            # days with a real survey (and a real survey on day 0), day 0 itself excluded: used by report(), not by the loss
+    mask = real & real[:, :1]        
     mask[:, 0] = False
     dataset['mask'] = tf.convert_to_tensor(mask, tf.float64)
     return dataset
@@ -132,16 +133,14 @@ def load_datasets():
     if missing:
         raise KeyError(f"{DATA_PATH} has no {missing}: run parse.py again")
 
-    # the split comes from parse.py: 0 train, 1 validation, 2 test, -1 not used (low quality)
     indices = [np.flatnonzero(np.asarray(raw["split"]) == k) for k in (0, 1, 2)]
     if min(len(i) for i in indices) == 0:
         raise ValueError(f"empty split (train {len(indices[0])}, valid {len(indices[1])}, test {len(indices[2])}): check the thresholds and the year blocks in parse.py")
     if n_PCA > min(len(indices[0]), raw["profile0"].shape[1]):
         raise ValueError(f"n_PCA = {n_PCA} is more than the training windows or the profile points")
 
-    # PCA of the day-0 profile, fitted on the training windows only; each score is normalized with its training range
     mean, components, explained = fit_pca(raw["profile0"][indices[0]], n_PCA)
-    _pca.update(mean=mean, components=components)
+    pca.update(mean=mean, components=components)
     train_scores = (raw["profile0"][indices[0]] - mean) @ components.T
     low, high = train_scores.min(axis=0), train_scores.max(axis=0)
     high = np.maximum(high, low + 1e-6)
@@ -264,7 +263,7 @@ class LDNetModel:
         states = self.evolve_dynamics(dataset)
         return self.reconstruct_output(dataset, states)
     
-    # TODO: check from here on
+    # TODO: check save
  
     def save(self, model_dir=None):
         model_dir = Path(model_dir)
@@ -297,7 +296,7 @@ class LDNetModel:
         model.NNrec = tf.keras.models.load_model(str(model_dir / 'NNrec.keras'))
         return model
 
-epsilon = 1e-4                  # (weight_direction is one of the settings at the top)
+epsilon = 1e-4     
 
 def get_direction(velocity):
     return tf.math.divide(velocity, (epsilon + tf.expand_dims(tf.norm(velocity, axis=3), axis=-1)))
@@ -315,51 +314,3 @@ def make_loss_fn(
         MSE_direction = tf.reduce_mean(tf.square(direction - target_direction))
         return MSE_velocity + weight_direction * MSE_direction
     return loss_fn
-
-# ---- evaluation (used by train.py and visualize.py; not part of the training) ----
-PREDICT_CHUNK = 25      # windows per forward pass when predicting
-
-def to_units(field):
-    """Normalized field [S, T, P, 1] -> physical units [S, T, P]."""
-    return utils.denormalize_output(field, problem, normalization).numpy()[..., 0]
-
-def predict(model, dataset, chunk=PREDICT_CHUNK):
-    """Model output and target in physical units, both [S, T, P]."""
-    parts = []
-    parameters = dataset.get('inp_parameters')
-    for start in range(0, int(dataset['num_samples']), chunk):
-        signals = dataset['inp_signals'][start:start + chunk]
-        sub = dict(num_samples=int(signals.shape[0]), num_times=dataset['num_times'], num_points=dataset['num_points'],
-                   inp_signals=signals, points_full=dataset['points_full'][start:start + chunk])
-        if parameters is not None:
-            sub['inp_parameters'] = parameters[start:start + chunk]
-        parts.append(model(sub))
-    return to_units(tf.concat(parts, axis=0)), to_units(dataset['out_fields'])
-
-def rmse(error, mask):
-    """Root mean square of error [S, T, P] over the days of mask [S, T] (all points)."""
-    return float(np.sqrt(np.mean(np.square(error[mask])))) if mask.any() else float('nan')
-
-def report(model, dataset_train, dataset_valid, dataset_tests, top_share=0.1):
-    """RMSE (physical units, observed days only) of the model against two baselines that use no forcing:
-    'zero' (nothing changes) and 'mean' (the average change of the training windows, by day and point).
-    'top' = the windows with the largest mean |change| (top_share of them): the extreme events."""
-    mask_train = dataset_train['mask'].numpy() > 0
-    _, target_train = predict(model, dataset_train)
-    mean_change = np.stack([target_train[:, k][mask_train[:, k]].mean(axis=0) if mask_train[:, k].any() else np.zeros(target_train.shape[2])
-                            for k in range(target_train.shape[1])])                       # [T, P]
-    rows = []
-    for name, dataset in (("train", dataset_train), ("valid", dataset_valid), ("test", dataset_tests)):
-        prediction, target = predict(model, dataset)
-        mask = dataset['mask'].numpy() > 0
-        strength = (np.abs(target) * mask[..., None]).sum(axis=(1, 2)) / np.maximum(mask.sum(axis=1) * target.shape[2], 1)
-        top = mask & (strength >= np.quantile(strength[mask.any(axis=1)], 1 - top_share))[:, None]
-        errors = [prediction - target, -target, mean_change[None] - target]               # model, zero, mean
-        rows.append((name, *[rmse(e, mask) for e in errors], *[rmse(e, top) for e in errors[:2]]))
-    print(f"{'':6s}{'model':>9s}{'zero':>9s}{'mean':>9s}{'vs zero':>9s}{'vs mean':>9s} | top {int(top_share * 100)}%:{'model':>8s}{'zero':>9s}{'vs zero':>9s}")
-    for name, m, z, mean, mt, zt in rows:
-        print(f"{name:6s}{m:9.2f}{z:9.2f}{mean:9.2f}{1 - m**2 / z**2:9.2f}{1 - m**2 / mean**2:9.2f} |{'':9s}{mt:8.2f}{zt:9.2f}{1 - mt**2 / zt**2:9.2f}")
-    print("vs zero / vs mean = 1 - MSE(model) / MSE(baseline), above 0 means better than the baseline. 'mean' = the average change of the training windows (day by day, point by point), no forcing.")
-    return {name: {"rmse_model": m, "rmse_zero": z, "rmse_mean": mean, "vs_zero": 1 - m**2 / z**2, "vs_mean": 1 - m**2 / mean**2,
-                   "top_rmse_model": mt, "top_rmse_zero": zt, "top_vs_zero": 1 - mt**2 / zt**2}
-            for name, m, z, mean, mt, zt in rows}
