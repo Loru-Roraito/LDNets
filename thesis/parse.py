@@ -33,6 +33,8 @@ START_DATE = common.START_DATE
 END_DATE = common.END_DATE
 N_DAYS = (END_DATE - START_DATE).days + 1
 
+PERCENTILE = common.PERCENTILE
+
 def parse_xaxis(value):
     return float(value.rstrip("m"))
 
@@ -85,26 +87,43 @@ rows = np.arange(N_DAYS)
 imax = np.argmax(np.where(np.isnan(hs), -np.inf, hs), axis=1)
 no_h = np.isnan(hs).all(axis=1)
 
+tide_among_wave_hours = np.where(np.isnan(tides) | np.isnan(hs), -np.inf, tides)
+imax_tide = np.argmax(tide_among_wave_hours, axis=1)
+no_tide = ~np.isfinite(tide_among_wave_hours.max(axis=1))
+
 def at_max(grid):
     values = grid[rows, imax]
     values[no_h] = np.nan
     return values
 
-hs_mean, hs_max = daily_mean(hs), at_max(hs)
-ts_mean, ts_max = daily_mean(ts), at_max(ts)
-dirs_mean, dirs_max = daily_mean(dirs), at_max(dirs)
-tides_mean, tides_max = daily_mean(tides), at_max(tides)
+def at_high_tide(grid):
+    values = grid[rows, imax_tide]
+    values[no_tide] = np.nan
+    return values
+
+hs_mean, hs_tide, hs_max = daily_mean(hs), at_high_tide(hs), at_max(hs)
+ts_mean, ts_tide, ts_max = daily_mean(ts), at_high_tide(ts), at_max(ts)
+dirs_mean, dirs_tide, dirs_max = daily_mean(dirs), at_high_tide(dirs), at_max(dirs)
+tides_mean, tides_tide, tides_max = daily_mean(tides), at_high_tide(tides), at_max(tides)
 
 h_quality = (~np.isnan(hs)).sum(axis=1) / WAVE_N
 t_quality = (~np.isnan(ts)).sum(axis=1) / WAVE_N
 dir_quality = (~np.isnan(dirs)).sum(axis=1) / WAVE_N
 tide_quality = (~np.isnan(tides)).sum(axis=1) / TIDE_N
 
-signals = np.column_stack([hs_mean, hs_max, ts_mean, ts_max, dirs_mean, dirs_max, tides_mean, tides_max])
-sign_names = ["hmean", "hmax", "tmean", "tmax", "dirmean", "dirmax", "tidemean", "tidemax"]
-print("signal percentiles (1, 99):")
-for name, column in zip(sign_names, signals.T):
-    print(f"  {name:9s}", np.round(np.nanpercentile(column, [1, 99]), 2))
+values = {
+    "hmean": hs_mean,       "htide": hs_tide,       "hmax": hs_max,
+    "tmean": ts_mean,       "ttide": ts_tide,       "tmax": ts_max,
+    "dirmean": dirs_mean,   "dirtide": dirs_tide,   "dirmax": dirs_max,
+    "tidemean": tides_mean, "tidetide": tides_tide, "tidemax": tides_max,
+}
+sign_names = common.SIGNAL_NAMES
+if not sign_names:
+    raise ValueError("all the signal flags are off: there are no signals")
+signals = np.column_stack([values[name] for name in sign_names])
+
+for column in signals.T:
+    print(np.round(np.nanpercentile(column, [100 - PERCENTILE, PERCENTILE]), 2))
 
 # missing signals are carried from previous values
 signals = pd.DataFrame(signals).ffill().bfill().to_numpy()
@@ -162,6 +181,7 @@ print(f"split: train {np.sum(split == 0)}, validation {np.sum(split == 1)}, test
 dataset = {
     "x": xaxis,
     "sign": signals,
+    "sign_names": sign_names,
     "output": output,
     "real": real,
     "valid": valid,
@@ -185,7 +205,7 @@ print(dataset["season"].shape)
 observed = real[valid].copy()
 observed[:, 0] = False
 
-print("output percentiles (1, 99):", np.round(np.percentile(np.abs(output[valid][observed]), [1, 99]), 1))
+print(f"output percentiles ({100 - PERCENTILE}, {PERCENTILE}):", np.round(np.percentile(np.abs(output[valid][observed]), [100 - PERCENTILE, PERCENTILE]), 1))
 
 np.save("thesis/data/data.npy", dataset)
 print("data converted to npy")

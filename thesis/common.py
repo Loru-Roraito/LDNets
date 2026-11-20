@@ -1,5 +1,4 @@
 import os
-import json
 from pathlib import Path
 from network import utils
 import numpy as np
@@ -14,16 +13,45 @@ tf.config.experimental.enable_op_determinism()
 
 START_DATE = datetime(1987, 1, 5)
 END_DATE = datetime(2024, 12, 24)
+SEASON = True
+MAX = True # measured at max H
+MEAN = True
+PEAK = True # measured at max tide
+TIDE = True
+PERCENTILE = 99.9
 dt = 24
 dt_base = 24
 num_latent_states = 5
 n_PCA = 10
 dyn_width = 32
 rec_width = 24
-num_epochs_Adam = 3000
-num_epochs_BFGS = 1000
+num_epochs_Adam = 1000
+num_epochs_BFGS = 2000
 weight_direction = 0.1
 learning_rate = 1e-3   
+
+SIGNAL_TABLE = [     # name, switched on, {PERCENTILE: (min, max)}
+    ("hmean",    MEAN,          {99: (0.22, 13.72), 99.9: (0.16, 26.07), 100: (0.11, 35.54)}),
+    ("htide",    PEAK,          {99: (0.19, 16.87), 99.9: (0.14, 30.90), 100: (0.12, 39.44)}),
+    ("hmax",     MAX,           {99: (0.28, 22.18), 99.9: (0.20, 42.44), 100: (0.14, 63.04)}),
+    ("tmean",    MEAN,          {99: (5.37, 12.53), 99.9: (4.84, 14.53), 100: (4.62, 15.73)}),
+    ("ttide",    PEAK,          {99: (5.00, 13.20), 99.9: (4.20, 14.94), 100: (3.90, 15.90)}),
+    ("tmax",     MAX,           {99: (4.70, 13.80), 99.9: (4.00, 15.90), 100: (3.70, 17.60)}),
+    ("dirmean",  MEAN,          {99: (0.55,  1.00), 99.9: (0.42,  1.00), 100: (0.33,  1.00)}),
+    ("dirtide",  PEAK,          {99: (0.37,  1.00), 99.9: (0.24,  1.00), 100: (0.21,  1.00)}),
+    ("dirmax",   MAX,           {99: (0.31,  1.00), 99.9: (0.21,  1.00), 100: (0.21,  1.00)}),
+    ("tidemean", MEAN and TIDE, {99: (1.48,  2.02), 99.9: (1.41,  2.21), 100: (1.39,  2.54)}),
+    ("tidetide", PEAK and TIDE, {99: (1.80,  2.50), 99.9: (1.68,  2.67), 100: (1.05,  3.04)}),
+    ("tidemax",  MAX and TIDE,  {99: (0.87,  2.36), 99.9: (0.71,  2.55), 100: (0.65,  3.04)}),
+]
+
+SIGNAL_NAMES = [name for name, on, _ in SIGNAL_TABLE if on]
+SIGNAL_RANGES = {name: ranges[PERCENTILE] for name, on, ranges in SIGNAL_TABLE if on}
+
+OUTPUT_TABLE = [     # name, switched on, {PERCENTILE: (min, max)}
+    ("y", True, {99: (0.0, 157), 99.9: (0.0, 225), 100: (0.0, 331)}),
+]
+OUTPUT_RANGES = {name: ranges[PERCENTILE] for name, on, ranges in OUTPUT_TABLE if on}
 
 problem = {
     "space": {
@@ -34,21 +62,12 @@ problem = {
             {"name": f"PCA_{point}"}
             for point in range(n_PCA)
         ],
-        {"name": "season_sin"}
+        *([
+            {"name": "season_sin"},
+            {"name": "season_cos"}
+        ] if SEASON else [])
     ],
-    "input_signals": [
-        { "name": "hmean" },
-        { "name": "hmax" },
-
-        { "name": "tmean" },
-        { "name": "tmax" },
-
-        { "name": "dirmean" },
-        { "name": "dirmax" },
-
-        { "name": "tidemean" },
-        { "name": "tidemax" }
-    ],
+    "input_signals": [{"name": n} for n in SIGNAL_NAMES],
     "output_fields": [
         { "name": "y" }
     ]
@@ -59,34 +78,20 @@ normalization = {
     'time': {
         'time_constant' : dt_base
     },
-    'input_signals': {
-        'hmean':    { 'min': 0.22, 'max': 13.72 },
-        'hmax':     { 'min': 0.28, 'max': 22.18 },
-
-        'tmean':    { 'min': 5.37, 'max': 12.53 },
-        'tmax':     { 'min': 4.7, 'max': 13.8 },
-
-        'dirmean':  { 'min': 0.55, 'max': 1.00 },
-        'dirmax':   { 'min': 0.31, 'max': 1.00 },
-
-        'tidemean': { 'min': 1.48, 'max': 2.02 },
-        'tidemax':  { 'min': 0.87, 'max': 2.36 }
-    },
+    'input_signals': {n: {'min': lo, 'max': hi} for n, (lo, hi) in SIGNAL_RANGES.items()},
     'input_parameters': {},     # filled by load_datasets
-    'output_fields': {
-        'y': { 'min': 0, 'max': +150 }
-    }
+    'output_fields': {n: {'min': lo, 'max': hi} for n, (lo, hi) in OUTPUT_RANGES.items()}
 }
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DATA_PATH = REPO_ROOT / 'thesis' / 'data' /'data.npy'
 
-RUN_TAG = "stride7"  # optional tag to distinguish runs with the same settings
+RUN_TAG = ""  # optional tag to distinguish runs with the same settings
 season = "-".join(p['name'][len("season_"):] for p in problem['input_parameters'] if p['name'].startswith("season_")) or "none"
 RUN_NAME = (f"lat{num_latent_states}_pca{n_PCA}_season-{season}_w{dyn_width}x{rec_width}_lr{learning_rate:g}_dir{weight_direction:g}"
-            f"_adam{num_epochs_Adam}_bfgs{num_epochs_BFGS}_seed{SEED}" + (f"_{RUN_TAG}" if RUN_TAG else ""))
+            f"_adam{num_epochs_Adam}_bfgs{num_epochs_BFGS}_seed{SEED}_mean{MEAN}_peak{PEAK}_max{MAX}_tide{TIDE}_percentile{PERCENTILE}" + (f"_{RUN_TAG}" if RUN_TAG else ""))
 RUN_DIR = REPO_ROOT / 'thesis' / 'model' / RUN_NAME
-MODEL_DIR = RUN_DIR / 'trained_model'
+MODEL_DIR = RUN_DIR / 'trained_model'   
 HISTORY_PATH = RUN_DIR / 'training_history.npz'
 
 REQUIRED_KEYS = ("x", "t", "sign", "output", "profile0", "split", "sample_dates")
@@ -108,7 +113,7 @@ SEASON_COLUMNS = {"season_sin": 0, "season_cos": 1}
 def parameters(raw, idx):
     scores = (raw['profile0'][idx] - pca['mean']) @ pca['components'].T
     season = [raw['season'][idx][:, SEASON_COLUMNS[p['name']]] for p in problem['input_parameters'] if p['name'] in SEASON_COLUMNS]
-    return np.concatenate([scores, np.stack(season, axis=1)], axis=1) if season else scores
+    return np.concatenate([scores, np.stack(season, axis=1)], axis=1) if SEASON else scores
 
 def make_dataset(raw, idx):
     params = parameters(raw, idx)
@@ -129,6 +134,9 @@ def make_dataset(raw, idx):
 
 def load_datasets():
     raw = np.load(DATA_PATH, allow_pickle=True)[()]
+    expected = [s['name'] for s in problem['input_signals']]
+    if list(raw.get('sign_names', [])) != expected:
+        raise ValueError(f"data.npy has the signals {list(raw.get('sign_names', []))} but common.py expects {expected}: run parse.py again")
     missing = [key for key in REQUIRED_KEYS if key not in raw]
     if missing:
         raise KeyError(f"{DATA_PATH} has no {missing}: run parse.py again")
@@ -145,7 +153,8 @@ def load_datasets():
     low, high = train_scores.min(axis=0), train_scores.max(axis=0)
     high = np.maximum(high, low + 1e-6)
     normalization['input_parameters'] = {f"PCA_{i}": {'min': float(l), 'max': float(h)} for i, (l, h) in enumerate(zip(low, high))}
-    normalization['input_parameters'].update(season_sin={'min': -1.0, 'max': 1.0}, season_cos={'min': -1.0, 'max': 1.0})
+    if SEASON:
+        normalization['input_parameters'].update(season_sin={'min': -1.0, 'max': 1.0}, season_cos={'min': -1.0, 'max': 1.0})
     print(f"PCA of the day-0 profile: {n_PCA} components, {explained:.0f}% of the variance of the training profiles")
 
     datasets = []

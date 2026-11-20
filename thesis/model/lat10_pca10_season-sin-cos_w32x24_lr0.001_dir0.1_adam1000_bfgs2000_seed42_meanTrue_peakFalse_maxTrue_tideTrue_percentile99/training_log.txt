@@ -1,0 +1,342 @@
+PCA of the day-0 profile: 10 components, 95% of the variance of the training profiles
+train: 274 windows
+valid: 88 windows
+test : 69 windows
+Model: "sequential"
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┓
+┃ Layer (type)                         ┃ Output Shape                ┃         Param # ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━┩
+│ dense (Dense)                        │ (None, 32)                  │             992 │
+├──────────────────────────────────────┼─────────────────────────────┼─────────────────┤
+│ dense_1 (Dense)                      │ (None, 32)                  │           1,056 │
+├──────────────────────────────────────┼─────────────────────────────┼─────────────────┤
+│ dense_2 (Dense)                      │ (None, 10)                  │             330 │
+└──────────────────────────────────────┴─────────────────────────────┴─────────────────┘
+ Total params: 2,378 (18.58 KB)
+ Trainable params: 2,378 (18.58 KB)
+ Non-trainable params: 0 (0.00 B)
+Model: "sequential_1"
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┓
+┃ Layer (type)                         ┃ Output Shape                ┃         Param # ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━┩
+│ dense_3 (Dense)                      │ (None, None, None, 24)      │             480 │
+├──────────────────────────────────────┼─────────────────────────────┼─────────────────┤
+│ dense_4 (Dense)                      │ (None, None, None, 24)      │             600 │
+├──────────────────────────────────────┼─────────────────────────────┼─────────────────┤
+│ dense_5 (Dense)                      │ (None, None, None, 24)      │             600 │
+├──────────────────────────────────────┼─────────────────────────────┼─────────────────┤
+│ dense_6 (Dense)                      │ (None, None, None, 24)      │             600 │
+├──────────────────────────────────────┼─────────────────────────────┼─────────────────┤
+│ dense_7 (Dense)                      │ (None, None, None, 1)       │              25 │
+└──────────────────────────────────────┴─────────────────────────────┴─────────────────┘
+ Total params: 2,305 (18.01 KB)
+ Trainable params: 2,305 (18.01 KB)
+ Non-trainable params: 0 (0.00 B)
+Tracing functions with autograph...
+Tracing completed.
+[2026-11-17 23:38:39] epoch    0   -   training loss: 2.933e+00   -   validation loss 2.386e+00
+training (Adam)...
+[2026-11-17 23:38:50] epoch   10   -   training loss: 4.642e-01   -   validation loss 4.793e-01
+[2026-11-17 23:38:58] epoch   20   -   training loss: 3.539e-01   -   validation loss 3.788e-01
+[2026-11-17 23:39:05] epoch   30   -   training loss: 3.063e-01   -   validation loss 3.450e-01
+[2026-11-17 23:39:13] epoch   40   -   training loss: 2.792e-01   -   validation loss 3.267e-01
+[2026-11-17 23:39:20] epoch   50   -   training loss: 2.651e-01   -   validation loss 3.180e-01
+[2026-11-17 23:39:27] epoch   60   -   training loss: 2.548e-01   -   validation loss 3.105e-01
+[2026-11-17 23:39:35] epoch   70   -   training loss: 2.484e-01   -   validation loss 3.047e-01
+[2026-11-17 23:39:42] epoch   80   -   training loss: 2.440e-01   -   validation loss 2.994e-01
+[2026-11-17 23:39:50] epoch   90   -   training loss: 2.402e-01   -   validation loss 2.960e-01
+[2026-11-17 23:39:57] epoch  100   -   training loss: 2.377e-01   -   validation loss 2.932e-01
+[2026-11-17 23:40:05] epoch  110   -   training loss: 2.354e-01   -   validation loss 2.909e-01
+[2026-11-17 23:40:12] epoch  120   -   training loss: 2.335e-01   -   validation loss 2.894e-01
+[2026-11-17 23:40:20] epoch  130   -   training loss: 2.317e-01   -   validation loss 2.874e-01
+[2026-11-17 23:40:27] epoch  140   -   training loss: 2.302e-01   -   validation loss 2.863e-01
+[2026-11-17 23:40:35] epoch  150   -   training loss: 2.287e-01   -   validation loss 2.854e-01
+[2026-11-17 23:40:42] epoch  160   -   training loss: 2.273e-01   -   validation loss 2.844e-01
+[2026-11-17 23:40:50] epoch  170   -   training loss: 2.239e-01   -   validation loss 2.827e-01
+[2026-11-17 23:40:57] epoch  180   -   training loss: 2.228e-01   -   validation loss 2.820e-01
+[2026-11-17 23:41:05] epoch  190   -   training loss: 2.216e-01   -   validation loss 2.807e-01
+[2026-11-17 23:41:12] epoch  200   -   training loss: 2.205e-01   -   validation loss 2.796e-01
+[2026-11-17 23:41:19] epoch  210   -   training loss: 2.194e-01   -   validation loss 2.784e-01
+[2026-11-17 23:41:27] epoch  220   -   training loss: 2.184e-01   -   validation loss 2.770e-01
+[2026-11-17 23:41:34] epoch  230   -   training loss: 2.173e-01   -   validation loss 2.755e-01
+[2026-11-17 23:41:42] epoch  240   -   training loss: 2.162e-01   -   validation loss 2.744e-01
+[2026-11-17 23:41:49] epoch  250   -   training loss: 2.151e-01   -   validation loss 2.735e-01
+[2026-11-17 23:41:57] epoch  260   -   training loss: 2.142e-01   -   validation loss 2.724e-01
+[2026-11-17 23:42:04] epoch  270   -   training loss: 2.132e-01   -   validation loss 2.714e-01
+[2026-11-17 23:42:11] epoch  280   -   training loss: 2.122e-01   -   validation loss 2.704e-01
+[2026-11-17 23:42:19] epoch  290   -   training loss: 2.113e-01   -   validation loss 2.694e-01
+[2026-11-17 23:42:26] epoch  300   -   training loss: 2.104e-01   -   validation loss 2.684e-01
+[2026-11-17 23:42:34] epoch  310   -   training loss: 2.095e-01   -   validation loss 2.674e-01
+[2026-11-17 23:42:41] epoch  320   -   training loss: 2.086e-01   -   validation loss 2.664e-01
+[2026-11-17 23:42:49] epoch  330   -   training loss: 2.077e-01   -   validation loss 2.654e-01
+[2026-11-17 23:42:56] epoch  340   -   training loss: 2.068e-01   -   validation loss 2.645e-01
+[2026-11-17 23:43:04] epoch  350   -   training loss: 2.059e-01   -   validation loss 2.635e-01
+[2026-11-17 23:43:11] epoch  360   -   training loss: 2.051e-01   -   validation loss 2.626e-01
+[2026-11-17 23:43:18] epoch  370   -   training loss: 2.041e-01   -   validation loss 2.617e-01
+[2026-11-17 23:43:26] epoch  380   -   training loss: 2.032e-01   -   validation loss 2.608e-01
+[2026-11-17 23:43:34] epoch  390   -   training loss: 2.022e-01   -   validation loss 2.598e-01
+[2026-11-17 23:43:41] epoch  400   -   training loss: 2.012e-01   -   validation loss 2.588e-01
+[2026-11-17 23:43:49] epoch  410   -   training loss: 2.003e-01   -   validation loss 2.578e-01
+[2026-11-17 23:43:56] epoch  420   -   training loss: 1.993e-01   -   validation loss 2.568e-01
+[2026-11-17 23:44:04] epoch  430   -   training loss: 1.983e-01   -   validation loss 2.557e-01
+[2026-11-17 23:44:11] epoch  440   -   training loss: 1.974e-01   -   validation loss 2.549e-01
+[2026-11-17 23:44:19] epoch  450   -   training loss: 1.965e-01   -   validation loss 2.537e-01
+[2026-11-17 23:44:26] epoch  460   -   training loss: 1.956e-01   -   validation loss 2.527e-01
+[2026-11-17 23:44:33] epoch  470   -   training loss: 1.947e-01   -   validation loss 2.519e-01
+[2026-11-17 23:44:41] epoch  480   -   training loss: 1.938e-01   -   validation loss 2.513e-01
+[2026-11-17 23:44:48] epoch  490   -   training loss: 1.930e-01   -   validation loss 2.502e-01
+[2026-11-17 23:44:56] epoch  500   -   training loss: 1.922e-01   -   validation loss 2.494e-01
+[2026-11-17 23:45:03] epoch  510   -   training loss: 1.915e-01   -   validation loss 2.490e-01
+[2026-11-17 23:45:11] epoch  520   -   training loss: 1.907e-01   -   validation loss 2.480e-01
+[2026-11-17 23:45:18] epoch  530   -   training loss: 1.900e-01   -   validation loss 2.475e-01
+[2026-11-17 23:45:26] epoch  540   -   training loss: 1.893e-01   -   validation loss 2.469e-01
+[2026-11-17 23:45:33] epoch  550   -   training loss: 1.886e-01   -   validation loss 2.462e-01
+[2026-11-17 23:45:41] epoch  560   -   training loss: 1.879e-01   -   validation loss 2.458e-01
+[2026-11-17 23:45:48] epoch  570   -   training loss: 1.871e-01   -   validation loss 2.447e-01
+[2026-11-17 23:45:56] epoch  580   -   training loss: 1.863e-01   -   validation loss 2.434e-01
+[2026-11-17 23:46:03] epoch  590   -   training loss: 1.855e-01   -   validation loss 2.420e-01
+[2026-11-17 23:46:10] epoch  600   -   training loss: 1.844e-01   -   validation loss 2.420e-01
+[2026-11-17 23:46:18] epoch  610   -   training loss: 1.835e-01   -   validation loss 2.410e-01
+[2026-11-17 23:46:25] epoch  620   -   training loss: 1.831e-01   -   validation loss 2.434e-01
+[2026-11-17 23:46:33] epoch  630   -   training loss: 1.818e-01   -   validation loss 2.399e-01
+[2026-11-17 23:46:40] epoch  640   -   training loss: 1.812e-01   -   validation loss 2.386e-01
+[2026-11-17 23:46:48] epoch  650   -   training loss: 1.804e-01   -   validation loss 2.392e-01
+[2026-11-17 23:46:55] epoch  660   -   training loss: 1.800e-01   -   validation loss 2.400e-01
+[2026-11-17 23:47:03] epoch  670   -   training loss: 1.793e-01   -   validation loss 2.359e-01
+[2026-11-17 23:47:10] epoch  680   -   training loss: 1.786e-01   -   validation loss 2.376e-01
+[2026-11-17 23:47:18] epoch  690   -   training loss: 1.780e-01   -   validation loss 2.367e-01
+[2026-11-17 23:47:25] epoch  700   -   training loss: 1.776e-01   -   validation loss 2.341e-01
+[2026-11-17 23:47:33] epoch  710   -   training loss: 1.770e-01   -   validation loss 2.341e-01
+[2026-11-17 23:47:40] epoch  720   -   training loss: 1.765e-01   -   validation loss 2.343e-01
+[2026-11-17 23:47:48] epoch  730   -   training loss: 1.762e-01   -   validation loss 2.326e-01
+[2026-11-17 23:47:55] epoch  740   -   training loss: 1.757e-01   -   validation loss 2.334e-01
+[2026-11-17 23:48:03] epoch  750   -   training loss: 1.762e-01   -   validation loss 2.364e-01
+[2026-11-17 23:48:10] epoch  760   -   training loss: 1.750e-01   -   validation loss 2.312e-01
+[2026-11-17 23:48:18] epoch  770   -   training loss: 1.745e-01   -   validation loss 2.319e-01
+[2026-11-17 23:48:25] epoch  780   -   training loss: 1.742e-01   -   validation loss 2.310e-01
+[2026-11-17 23:48:33] epoch  790   -   training loss: 1.739e-01   -   validation loss 2.324e-01
+[2026-11-17 23:48:40] epoch  800   -   training loss: 1.738e-01   -   validation loss 2.330e-01
+[2026-11-17 23:48:48] epoch  810   -   training loss: 1.734e-01   -   validation loss 2.293e-01
+[2026-11-17 23:48:55] epoch  820   -   training loss: 1.728e-01   -   validation loss 2.304e-01
+[2026-11-17 23:49:03] epoch  830   -   training loss: 1.729e-01   -   validation loss 2.328e-01
+[2026-11-17 23:49:10] epoch  840   -   training loss: 1.722e-01   -   validation loss 2.294e-01
+[2026-11-17 23:49:18] epoch  850   -   training loss: 1.724e-01   -   validation loss 2.277e-01
+[2026-11-17 23:49:25] epoch  860   -   training loss: 1.717e-01   -   validation loss 2.305e-01
+[2026-11-17 23:49:33] epoch  870   -   training loss: 1.714e-01   -   validation loss 2.305e-01
+[2026-11-17 23:49:40] epoch  880   -   training loss: 1.713e-01   -   validation loss 2.276e-01
+[2026-11-17 23:49:48] epoch  890   -   training loss: 1.708e-01   -   validation loss 2.284e-01
+[2026-11-17 23:49:55] epoch  900   -   training loss: 1.705e-01   -   validation loss 2.295e-01
+[2026-11-17 23:50:02] epoch  910   -   training loss: 1.721e-01   -   validation loss 2.349e-01
+[2026-11-17 23:50:10] epoch  920   -   training loss: 1.700e-01   -   validation loss 2.281e-01
+[2026-11-17 23:50:17] epoch  930   -   training loss: 1.701e-01   -   validation loss 2.267e-01
+[2026-11-17 23:50:25] epoch  940   -   training loss: 1.698e-01   -   validation loss 2.267e-01
+[2026-11-17 23:50:32] epoch  950   -   training loss: 1.693e-01   -   validation loss 2.284e-01
+[2026-11-17 23:50:40] epoch  960   -   training loss: 1.690e-01   -   validation loss 2.279e-01
+[2026-11-17 23:50:47] epoch  970   -   training loss: 1.690e-01   -   validation loss 2.271e-01
+[2026-11-17 23:50:55] epoch  980   -   training loss: 1.687e-01   -   validation loss 2.290e-01
+[2026-11-17 23:51:02] epoch  990   -   training loss: 1.695e-01   -   validation loss 2.250e-01
+[2026-11-17 23:51:09] epoch 1000   -   training loss: 1.681e-01   -   validation loss 2.276e-01
+training (BFGS)...
+[2026-11-17 23:51:38] epoch 1010   -   training loss: 1.678e-01   -   validation loss 2.268e-01
+[2026-11-17 23:52:04] epoch 1020   -   training loss: 1.652e-01   -   validation loss 2.242e-01
+[2026-11-17 23:52:31] epoch 1030   -   training loss: 1.625e-01   -   validation loss 2.207e-01
+[2026-11-17 23:52:58] epoch 1040   -   training loss: 1.603e-01   -   validation loss 2.197e-01
+[2026-11-17 23:53:27] epoch 1050   -   training loss: 1.585e-01   -   validation loss 2.197e-01
+[2026-11-17 23:53:52] epoch 1060   -   training loss: 1.571e-01   -   validation loss 2.192e-01
+[2026-11-17 23:54:17] epoch 1070   -   training loss: 1.555e-01   -   validation loss 2.198e-01
+[2026-11-17 23:54:42] epoch 1080   -   training loss: 1.540e-01   -   validation loss 2.221e-01
+[2026-11-17 23:55:08] epoch 1090   -   training loss: 1.528e-01   -   validation loss 2.245e-01
+[2026-11-17 23:55:32] epoch 1100   -   training loss: 1.518e-01   -   validation loss 2.284e-01
+[2026-11-17 23:55:57] epoch 1110   -   training loss: 1.508e-01   -   validation loss 2.342e-01
+[2026-11-17 23:56:22] epoch 1120   -   training loss: 1.499e-01   -   validation loss 2.437e-01
+[2026-11-17 23:56:47] epoch 1130   -   training loss: 1.493e-01   -   validation loss 2.541e-01
+[2026-11-17 23:57:12] epoch 1140   -   training loss: 1.486e-01   -   validation loss 2.646e-01
+[2026-11-17 23:57:36] epoch 1150   -   training loss: 1.479e-01   -   validation loss 2.801e-01
+[2026-11-17 23:58:01] epoch 1160   -   training loss: 1.474e-01   -   validation loss 2.821e-01
+[2026-11-17 23:58:26] epoch 1170   -   training loss: 1.468e-01   -   validation loss 2.819e-01
+[2026-11-17 23:58:50] epoch 1180   -   training loss: 1.463e-01   -   validation loss 2.700e-01
+[2026-11-17 23:59:15] epoch 1190   -   training loss: 1.457e-01   -   validation loss 2.666e-01
+[2026-11-17 23:59:40] epoch 1200   -   training loss: 1.450e-01   -   validation loss 2.584e-01
+[2026-11-18 00:00:05] epoch 1210   -   training loss: 1.443e-01   -   validation loss 2.468e-01
+[2026-11-18 00:00:29] epoch 1220   -   training loss: 1.436e-01   -   validation loss 2.453e-01
+[2026-11-18 00:00:55] epoch 1230   -   training loss: 1.429e-01   -   validation loss 2.442e-01
+[2026-11-18 00:01:20] epoch 1240   -   training loss: 1.424e-01   -   validation loss 2.500e-01
+[2026-11-18 00:01:44] epoch 1250   -   training loss: 1.418e-01   -   validation loss 2.595e-01
+[2026-11-18 00:02:09] epoch 1260   -   training loss: 1.412e-01   -   validation loss 2.692e-01
+[2026-11-18 00:02:33] epoch 1270   -   training loss: 1.407e-01   -   validation loss 2.935e-01
+[2026-11-18 00:02:58] epoch 1280   -   training loss: 1.403e-01   -   validation loss 3.025e-01
+[2026-11-18 00:03:22] epoch 1290   -   training loss: 1.397e-01   -   validation loss 3.067e-01
+[2026-11-18 00:03:47] epoch 1300   -   training loss: 1.392e-01   -   validation loss 3.187e-01
+[2026-11-18 00:04:12] epoch 1310   -   training loss: 1.387e-01   -   validation loss 3.212e-01
+[2026-11-18 00:04:37] epoch 1320   -   training loss: 1.384e-01   -   validation loss 3.211e-01
+[2026-11-18 00:05:01] epoch 1330   -   training loss: 1.380e-01   -   validation loss 3.189e-01
+[2026-11-18 00:05:26] epoch 1340   -   training loss: 1.376e-01   -   validation loss 3.223e-01
+[2026-11-18 00:05:51] epoch 1350   -   training loss: 1.371e-01   -   validation loss 3.308e-01
+[2026-11-18 00:06:15] epoch 1360   -   training loss: 1.367e-01   -   validation loss 3.395e-01
+[2026-11-18 00:06:40] epoch 1370   -   training loss: 1.362e-01   -   validation loss 3.304e-01
+[2026-11-18 00:07:04] epoch 1380   -   training loss: 1.357e-01   -   validation loss 3.530e-01
+[2026-11-18 00:07:29] epoch 1390   -   training loss: 1.351e-01   -   validation loss 3.396e-01
+[2026-11-18 00:07:54] epoch 1400   -   training loss: 1.344e-01   -   validation loss 3.351e-01
+[2026-11-18 00:08:19] epoch 1410   -   training loss: 1.338e-01   -   validation loss 3.214e-01
+[2026-11-18 00:08:44] epoch 1420   -   training loss: 1.333e-01   -   validation loss 3.043e-01
+[2026-11-18 00:09:08] epoch 1430   -   training loss: 1.327e-01   -   validation loss 2.875e-01
+[2026-11-18 00:09:32] epoch 1440   -   training loss: 1.323e-01   -   validation loss 2.943e-01
+[2026-11-18 00:09:57] epoch 1450   -   training loss: 1.317e-01   -   validation loss 3.719e-01
+[2026-11-18 00:10:22] epoch 1460   -   training loss: 1.311e-01   -   validation loss 4.401e-01
+[2026-11-18 00:10:46] epoch 1470   -   training loss: 1.308e-01   -   validation loss 4.616e-01
+[2026-11-18 00:11:10] epoch 1480   -   training loss: 1.304e-01   -   validation loss 5.113e-01
+[2026-11-18 00:11:35] epoch 1490   -   training loss: 1.301e-01   -   validation loss 5.103e-01
+[2026-11-18 00:12:00] epoch 1500   -   training loss: 1.297e-01   -   validation loss 4.799e-01
+[2026-11-18 00:12:24] epoch 1510   -   training loss: 1.294e-01   -   validation loss 4.938e-01
+[2026-11-18 00:12:49] epoch 1520   -   training loss: 1.291e-01   -   validation loss 5.695e-01
+[2026-11-18 00:13:14] epoch 1530   -   training loss: 1.288e-01   -   validation loss 5.867e-01
+[2026-11-18 00:13:38] epoch 1540   -   training loss: 1.284e-01   -   validation loss 6.385e-01
+[2026-11-18 00:14:03] epoch 1550   -   training loss: 1.281e-01   -   validation loss 1.085e+00
+[2026-11-18 00:14:28] epoch 1560   -   training loss: 1.277e-01   -   validation loss 6.711e-01
+[2026-11-18 00:14:52] epoch 1570   -   training loss: 1.274e-01   -   validation loss 6.109e-01
+[2026-11-18 00:15:17] epoch 1580   -   training loss: 1.271e-01   -   validation loss 5.948e-01
+[2026-11-18 00:15:42] epoch 1590   -   training loss: 1.268e-01   -   validation loss 5.848e-01
+[2026-11-18 00:16:06] epoch 1600   -   training loss: 1.264e-01   -   validation loss 5.593e-01
+[2026-11-18 00:16:31] epoch 1610   -   training loss: 1.260e-01   -   validation loss 5.540e-01
+[2026-11-18 00:16:55] epoch 1620   -   training loss: 1.257e-01   -   validation loss 5.271e-01
+[2026-11-18 00:17:20] epoch 1630   -   training loss: 1.254e-01   -   validation loss 5.229e-01
+[2026-11-18 00:17:45] epoch 1640   -   training loss: 1.251e-01   -   validation loss 5.351e-01
+[2026-11-18 00:18:09] epoch 1650   -   training loss: 1.249e-01   -   validation loss 5.499e-01
+[2026-11-18 00:18:34] epoch 1660   -   training loss: 1.246e-01   -   validation loss 5.672e-01
+[2026-11-18 00:18:59] epoch 1670   -   training loss: 1.243e-01   -   validation loss 5.499e-01
+[2026-11-18 00:19:23] epoch 1680   -   training loss: 1.240e-01   -   validation loss 5.720e-01
+[2026-11-18 00:19:48] epoch 1690   -   training loss: 1.236e-01   -   validation loss 6.308e-01
+[2026-11-18 00:20:13] epoch 1700   -   training loss: 1.234e-01   -   validation loss 6.633e-01
+[2026-11-18 00:20:38] epoch 1710   -   training loss: 1.231e-01   -   validation loss 7.097e-01
+[2026-11-18 00:21:03] epoch 1720   -   training loss: 1.228e-01   -   validation loss 6.946e-01
+[2026-11-18 00:21:27] epoch 1730   -   training loss: 1.225e-01   -   validation loss 6.615e-01
+[2026-11-18 00:21:52] epoch 1740   -   training loss: 1.222e-01   -   validation loss 6.336e-01
+[2026-11-18 00:22:17] epoch 1750   -   training loss: 1.219e-01   -   validation loss 5.925e-01
+[2026-11-18 00:22:41] epoch 1760   -   training loss: 1.216e-01   -   validation loss 5.818e-01
+[2026-11-18 00:23:05] epoch 1770   -   training loss: 1.213e-01   -   validation loss 5.714e-01
+[2026-11-18 00:23:30] epoch 1780   -   training loss: 1.211e-01   -   validation loss 5.566e-01
+[2026-11-18 00:23:54] epoch 1790   -   training loss: 1.208e-01   -   validation loss 5.497e-01
+[2026-11-18 00:24:19] epoch 1800   -   training loss: 1.206e-01   -   validation loss 5.501e-01
+[2026-11-18 00:24:44] epoch 1810   -   training loss: 1.204e-01   -   validation loss 5.365e-01
+[2026-11-18 00:25:08] epoch 1820   -   training loss: 1.201e-01   -   validation loss 5.202e-01
+[2026-11-18 00:25:34] epoch 1830   -   training loss: 1.199e-01   -   validation loss 5.158e-01
+[2026-11-18 00:25:59] epoch 1840   -   training loss: 1.197e-01   -   validation loss 5.078e-01
+[2026-11-18 00:26:23] epoch 1850   -   training loss: 1.195e-01   -   validation loss 4.963e-01
+[2026-11-18 00:26:48] epoch 1860   -   training loss: 1.193e-01   -   validation loss 4.930e-01
+[2026-11-18 00:27:12] epoch 1870   -   training loss: 1.191e-01   -   validation loss 4.908e-01
+[2026-11-18 00:27:37] epoch 1880   -   training loss: 1.189e-01   -   validation loss 4.802e-01
+[2026-11-18 00:28:02] epoch 1890   -   training loss: 1.186e-01   -   validation loss 4.755e-01
+[2026-11-18 00:28:27] epoch 1900   -   training loss: 1.184e-01   -   validation loss 4.668e-01
+[2026-11-18 00:28:51] epoch 1910   -   training loss: 1.182e-01   -   validation loss 4.612e-01
+[2026-11-18 00:29:17] epoch 1920   -   training loss: 1.179e-01   -   validation loss 4.572e-01
+[2026-11-18 00:29:41] epoch 1930   -   training loss: 1.178e-01   -   validation loss 4.622e-01
+[2026-11-18 00:30:06] epoch 1940   -   training loss: 1.176e-01   -   validation loss 4.622e-01
+[2026-11-18 00:30:30] epoch 1950   -   training loss: 1.174e-01   -   validation loss 4.571e-01
+[2026-11-18 00:30:55] epoch 1960   -   training loss: 1.172e-01   -   validation loss 4.519e-01
+[2026-11-18 00:31:19] epoch 1970   -   training loss: 1.170e-01   -   validation loss 4.502e-01
+[2026-11-18 00:31:44] epoch 1980   -   training loss: 1.169e-01   -   validation loss 4.500e-01
+[2026-11-18 00:32:08] epoch 1990   -   training loss: 1.168e-01   -   validation loss 4.465e-01
+[2026-11-18 00:32:32] epoch 2000   -   training loss: 1.166e-01   -   validation loss 4.431e-01
+[2026-11-18 00:32:57] epoch 2010   -   training loss: 1.165e-01   -   validation loss 4.354e-01
+[2026-11-18 00:33:22] epoch 2020   -   training loss: 1.163e-01   -   validation loss 4.260e-01
+[2026-11-18 00:33:47] epoch 2030   -   training loss: 1.162e-01   -   validation loss 4.246e-01
+[2026-11-18 00:34:12] epoch 2040   -   training loss: 1.160e-01   -   validation loss 4.282e-01
+[2026-11-18 00:34:35] epoch 2050   -   training loss: 1.158e-01   -   validation loss 4.310e-01
+[2026-11-18 00:34:59] epoch 2060   -   training loss: 1.157e-01   -   validation loss 4.250e-01
+[2026-11-18 00:35:24] epoch 2070   -   training loss: 1.155e-01   -   validation loss 4.206e-01
+[2026-11-18 00:35:49] epoch 2080   -   training loss: 1.153e-01   -   validation loss 4.166e-01
+[2026-11-18 00:36:13] epoch 2090   -   training loss: 1.151e-01   -   validation loss 4.119e-01
+[2026-11-18 00:36:38] epoch 2100   -   training loss: 1.150e-01   -   validation loss 4.083e-01
+[2026-11-18 00:37:02] epoch 2110   -   training loss: 1.147e-01   -   validation loss 3.954e-01
+[2026-11-18 00:37:27] epoch 2120   -   training loss: 1.144e-01   -   validation loss 3.922e-01
+[2026-11-18 00:37:53] epoch 2130   -   training loss: 1.142e-01   -   validation loss 3.893e-01
+[2026-11-18 00:38:20] epoch 2140   -   training loss: 1.141e-01   -   validation loss 3.849e-01
+[2026-11-18 00:38:45] epoch 2150   -   training loss: 1.139e-01   -   validation loss 3.832e-01
+[2026-11-18 00:39:09] epoch 2160   -   training loss: 1.137e-01   -   validation loss 3.850e-01
+[2026-11-18 00:39:34] epoch 2170   -   training loss: 1.135e-01   -   validation loss 3.839e-01
+[2026-11-18 00:39:59] epoch 2180   -   training loss: 1.133e-01   -   validation loss 3.854e-01
+[2026-11-18 00:40:24] epoch 2190   -   training loss: 1.130e-01   -   validation loss 3.862e-01
+[2026-11-18 00:40:48] epoch 2200   -   training loss: 1.128e-01   -   validation loss 3.860e-01
+[2026-11-18 00:41:13] epoch 2210   -   training loss: 1.126e-01   -   validation loss 3.876e-01
+[2026-11-18 00:41:38] epoch 2220   -   training loss: 1.124e-01   -   validation loss 3.847e-01
+[2026-11-18 00:42:02] epoch 2230   -   training loss: 1.122e-01   -   validation loss 3.813e-01
+[2026-11-18 00:42:26] epoch 2240   -   training loss: 1.121e-01   -   validation loss 3.768e-01
+[2026-11-18 00:42:51] epoch 2250   -   training loss: 1.120e-01   -   validation loss 3.714e-01
+[2026-11-18 00:43:17] epoch 2260   -   training loss: 1.118e-01   -   validation loss 3.668e-01
+[2026-11-18 00:43:41] epoch 2270   -   training loss: 1.117e-01   -   validation loss 3.651e-01
+[2026-11-18 00:44:05] epoch 2280   -   training loss: 1.116e-01   -   validation loss 3.592e-01
+[2026-11-18 00:44:30] epoch 2290   -   training loss: 1.114e-01   -   validation loss 3.511e-01
+[2026-11-18 00:44:55] epoch 2300   -   training loss: 1.112e-01   -   validation loss 3.437e-01
+[2026-11-18 00:45:19] epoch 2310   -   training loss: 1.111e-01   -   validation loss 3.395e-01
+[2026-11-18 00:45:44] epoch 2320   -   training loss: 1.109e-01   -   validation loss 3.364e-01
+[2026-11-18 00:46:09] epoch 2330   -   training loss: 1.108e-01   -   validation loss 3.360e-01
+[2026-11-18 00:46:33] epoch 2340   -   training loss: 1.107e-01   -   validation loss 3.366e-01
+[2026-11-18 00:46:58] epoch 2350   -   training loss: 1.106e-01   -   validation loss 3.371e-01
+[2026-11-18 00:47:23] epoch 2360   -   training loss: 1.104e-01   -   validation loss 3.363e-01
+[2026-11-18 00:47:47] epoch 2370   -   training loss: 1.103e-01   -   validation loss 3.355e-01
+[2026-11-18 00:48:12] epoch 2380   -   training loss: 1.102e-01   -   validation loss 3.345e-01
+[2026-11-18 00:48:36] epoch 2390   -   training loss: 1.100e-01   -   validation loss 3.340e-01
+[2026-11-18 00:49:01] epoch 2400   -   training loss: 1.099e-01   -   validation loss 3.318e-01
+[2026-11-18 00:49:26] epoch 2410   -   training loss: 1.098e-01   -   validation loss 3.287e-01
+[2026-11-18 00:49:51] epoch 2420   -   training loss: 1.096e-01   -   validation loss 3.268e-01
+[2026-11-18 00:50:15] epoch 2430   -   training loss: 1.095e-01   -   validation loss 3.244e-01
+[2026-11-18 00:50:40] epoch 2440   -   training loss: 1.094e-01   -   validation loss 3.204e-01
+[2026-11-18 00:51:04] epoch 2450   -   training loss: 1.093e-01   -   validation loss 3.185e-01
+[2026-11-18 00:51:28] epoch 2460   -   training loss: 1.092e-01   -   validation loss 3.147e-01
+[2026-11-18 00:51:53] epoch 2470   -   training loss: 1.091e-01   -   validation loss 3.127e-01
+[2026-11-18 00:52:18] epoch 2480   -   training loss: 1.090e-01   -   validation loss 3.114e-01
+[2026-11-18 00:52:41] epoch 2490   -   training loss: 1.088e-01   -   validation loss 3.098e-01
+[2026-11-18 00:53:06] epoch 2500   -   training loss: 1.087e-01   -   validation loss 3.095e-01
+[2026-11-18 00:53:31] epoch 2510   -   training loss: 1.086e-01   -   validation loss 3.086e-01
+[2026-11-18 00:53:56] epoch 2520   -   training loss: 1.086e-01   -   validation loss 3.085e-01
+[2026-11-18 00:54:20] epoch 2530   -   training loss: 1.084e-01   -   validation loss 3.092e-01
+[2026-11-18 00:54:45] epoch 2540   -   training loss: 1.083e-01   -   validation loss 3.091e-01
+[2026-11-18 00:55:09] epoch 2550   -   training loss: 1.082e-01   -   validation loss 3.099e-01
+[2026-11-18 00:55:33] epoch 2560   -   training loss: 1.081e-01   -   validation loss 3.110e-01
+[2026-11-18 00:55:57] epoch 2570   -   training loss: 1.080e-01   -   validation loss 3.124e-01
+[2026-11-18 00:56:22] epoch 2580   -   training loss: 1.079e-01   -   validation loss 3.141e-01
+[2026-11-18 00:56:47] epoch 2590   -   training loss: 1.078e-01   -   validation loss 3.157e-01
+[2026-11-18 00:57:12] epoch 2600   -   training loss: 1.077e-01   -   validation loss 3.167e-01
+[2026-11-18 00:57:36] epoch 2610   -   training loss: 1.076e-01   -   validation loss 3.172e-01
+[2026-11-18 00:58:01] epoch 2620   -   training loss: 1.075e-01   -   validation loss 3.181e-01
+[2026-11-18 00:58:25] epoch 2630   -   training loss: 1.074e-01   -   validation loss 3.193e-01
+[2026-11-18 00:58:50] epoch 2640   -   training loss: 1.072e-01   -   validation loss 3.195e-01
+[2026-11-18 00:59:15] epoch 2650   -   training loss: 1.071e-01   -   validation loss 3.204e-01
+[2026-11-18 00:59:39] epoch 2660   -   training loss: 1.071e-01   -   validation loss 3.201e-01
+[2026-11-18 01:00:03] epoch 2670   -   training loss: 1.070e-01   -   validation loss 3.216e-01
+[2026-11-18 01:00:28] epoch 2680   -   training loss: 1.069e-01   -   validation loss 3.237e-01
+[2026-11-18 01:00:53] epoch 2690   -   training loss: 1.068e-01   -   validation loss 3.237e-01
+[2026-11-18 01:01:17] epoch 2700   -   training loss: 1.067e-01   -   validation loss 3.252e-01
+[2026-11-18 01:01:42] epoch 2710   -   training loss: 1.066e-01   -   validation loss 3.258e-01
+[2026-11-18 01:02:06] epoch 2720   -   training loss: 1.065e-01   -   validation loss 3.270e-01
+[2026-11-18 01:02:31] epoch 2730   -   training loss: 1.064e-01   -   validation loss 3.268e-01
+[2026-11-18 01:02:56] epoch 2740   -   training loss: 1.064e-01   -   validation loss 3.271e-01
+[2026-11-18 01:03:20] epoch 2750   -   training loss: 1.063e-01   -   validation loss 3.273e-01
+[2026-11-18 01:03:45] epoch 2760   -   training loss: 1.062e-01   -   validation loss 3.273e-01
+[2026-11-18 01:04:09] epoch 2770   -   training loss: 1.061e-01   -   validation loss 3.272e-01
+[2026-11-18 01:04:33] epoch 2780   -   training loss: 1.061e-01   -   validation loss 3.268e-01
+[2026-11-18 01:04:58] epoch 2790   -   training loss: 1.060e-01   -   validation loss 3.269e-01
+[2026-11-18 01:05:22] epoch 2800   -   training loss: 1.059e-01   -   validation loss 3.273e-01
+[2026-11-18 01:05:47] epoch 2810   -   training loss: 1.059e-01   -   validation loss 3.266e-01
+[2026-11-18 01:06:12] epoch 2820   -   training loss: 1.058e-01   -   validation loss 3.275e-01
+[2026-11-18 01:06:36] epoch 2830   -   training loss: 1.057e-01   -   validation loss 3.270e-01
+[2026-11-18 01:07:01] epoch 2840   -   training loss: 1.056e-01   -   validation loss 3.270e-01
+[2026-11-18 01:07:26] epoch 2850   -   training loss: 1.056e-01   -   validation loss 3.273e-01
+[2026-11-18 01:07:50] epoch 2860   -   training loss: 1.055e-01   -   validation loss 3.279e-01
+[2026-11-18 01:08:15] epoch 2870   -   training loss: 1.054e-01   -   validation loss 3.297e-01
+[2026-11-18 01:08:39] epoch 2880   -   training loss: 1.053e-01   -   validation loss 3.295e-01
+[2026-11-18 01:09:04] epoch 2890   -   training loss: 1.053e-01   -   validation loss 3.293e-01
+[2026-11-18 01:09:28] epoch 2900   -   training loss: 1.052e-01   -   validation loss 3.303e-01
+[2026-11-18 01:09:53] epoch 2910   -   training loss: 1.050e-01   -   validation loss 3.305e-01
+[2026-11-18 01:10:18] epoch 2920   -   training loss: 1.049e-01   -   validation loss 3.333e-01
+[2026-11-18 01:10:43] epoch 2930   -   training loss: 1.048e-01   -   validation loss 3.341e-01
+[2026-11-18 01:11:07] epoch 2940   -   training loss: 1.048e-01   -   validation loss 3.340e-01
+[2026-11-18 01:11:32] epoch 2950   -   training loss: 1.047e-01   -   validation loss 3.337e-01
+[2026-11-18 01:11:56] epoch 2960   -   training loss: 1.046e-01   -   validation loss 3.347e-01
+[2026-11-18 01:12:21] epoch 2970   -   training loss: 1.045e-01   -   validation loss 3.356e-01
+[2026-11-18 01:12:45] epoch 2980   -   training loss: 1.044e-01   -   validation loss 3.374e-01
+[2026-11-18 01:13:10] epoch 2990   -   training loss: 1.044e-01   -   validation loss 3.377e-01
+[2026-11-18 01:13:35] epoch 3000   -   training loss: 1.043e-01   -   validation loss 3.383e-01
+Model saved to /home/davide/LDNets/thesis/model/lat10_pca10_season-sin-cos_w32x24_lr0.001_dir0.1_adam1000_bfgs2000_seed42/trained_model
+History saved to /home/davide/LDNets/thesis/model/lat10_pca10_season-sin-cos_w32x24_lr0.001_dir0.1_adam1000_bfgs2000_seed42/training_history.npz
+Run folder: /home/davide/LDNets/thesis/model/lat10_pca10_season-sin-cos_w32x24_lr0.001_dir0.1_adam1000_bfgs2000_seed42

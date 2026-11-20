@@ -8,6 +8,25 @@ import numpy as np
 import json
 import time
 
+import sys
+
+class Tee:
+    """Writes everything to the screen and to the log file."""
+    def __init__(self, *streams):
+        self.streams = streams
+    def write(self, text):
+        for stream in self.streams:
+            stream.write(text)
+            stream.flush()
+    def flush(self):
+        for stream in self.streams:
+            stream.flush()
+
+common.RUN_DIR.mkdir(parents=True, exist_ok=True)
+log_file = open(common.RUN_DIR / "training_log.txt", "a", encoding="utf-8")
+sys.stdout = Tee(sys.__stdout__, log_file)
+sys.stderr = Tee(sys.__stderr__, log_file)
+
 start_time = time.time()
 dataset_train, dataset_valid, dataset_tests = common.load_datasets()
 normalization = common.normalization
