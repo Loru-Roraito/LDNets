@@ -1,0 +1,75 @@
+PCA of the day-0 profile: 10 components, 95% of the variance of the training profiles
+train: 274 windows
+valid: 88 windows
+test : 69 windows
+Model: "sequential"
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┓
+┃ Layer (type)                         ┃ Output Shape                ┃         Param # ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━┩
+│ dense (Dense)                        │ (None, 24)                  │             312 │
+├──────────────────────────────────────┼─────────────────────────────┼─────────────────┤
+│ dense_1 (Dense)                      │ (None, 24)                  │             600 │
+├──────────────────────────────────────┼─────────────────────────────┼─────────────────┤
+│ dense_2 (Dense)                      │ (None, 5)                   │             125 │
+└──────────────────────────────────────┴─────────────────────────────┴─────────────────┘
+ Total params: 1,037 (8.10 KB)
+ Trainable params: 1,037 (8.10 KB)
+ Non-trainable params: 0 (0.00 B)
+Model: "sequential_1"
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┓
+┃ Layer (type)                         ┃ Output Shape                ┃         Param # ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━┩
+│ dense_3 (Dense)                      │ (None, 32)                  │             960 │
+├──────────────────────────────────────┼─────────────────────────────┼─────────────────┤
+│ dense_4 (Dense)                      │ (None, 32)                  │           1,056 │
+├──────────────────────────────────────┼─────────────────────────────┼─────────────────┤
+│ dense_5 (Dense)                      │ (None, 5)                   │             165 │
+└──────────────────────────────────────┴─────────────────────────────┴─────────────────┘
+ Total params: 2,181 (17.04 KB)
+ Trainable params: 2,181 (17.04 KB)
+ Non-trainable params: 0 (0.00 B)
+Model: "sequential_2"
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┓
+┃ Layer (type)                         ┃ Output Shape                ┃         Param # ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━┩
+│ dense_6 (Dense)                      │ (None, None, None, 24)      │             456 │
+├──────────────────────────────────────┼─────────────────────────────┼─────────────────┤
+│ dense_7 (Dense)                      │ (None, None, None, 24)      │             600 │
+├──────────────────────────────────────┼─────────────────────────────┼─────────────────┤
+│ dense_8 (Dense)                      │ (None, None, None, 24)      │             600 │
+├──────────────────────────────────────┼─────────────────────────────┼─────────────────┤
+│ dense_9 (Dense)                      │ (None, None, None, 24)      │             600 │
+├──────────────────────────────────────┼─────────────────────────────┼─────────────────┤
+│ dense_10 (Dense)                     │ (None, None, None, 1)       │              25 │
+└──────────────────────────────────────┴─────────────────────────────┴─────────────────┘
+ Total params: 2,281 (17.82 KB)
+ Trainable params: 2,281 (17.82 KB)
+ Non-trainable params: 0 (0.00 B)
+Tracing functions with autograph...
+Tracing completed.
+[2026-11-26 12:52:27] epoch    0   -   training loss: 7.782e-01   -   validation loss 8.435e-01
+training (Adam)...
+[2026-11-26 12:52:37] epoch   10   -   training loss: 1.897e-01   -   validation loss 2.320e-01
+[2026-11-26 12:52:47] epoch   20   -   training loss: 1.227e-01   -   validation loss 1.525e-01
+[2026-11-26 12:52:56] epoch   30   -   training loss: 1.096e-01   -   validation loss 1.366e-01
+[2026-11-26 12:53:07] epoch   40   -   training loss: 1.045e-01   -   validation loss 1.297e-01
+[2026-11-26 12:53:17] epoch   50   -   training loss: 1.018e-01   -   validation loss 1.253e-01
+[2026-11-26 12:53:27] epoch   60   -   training loss: 9.995e-02   -   validation loss 1.239e-01
+[2026-11-26 12:53:37] epoch   70   -   training loss: 9.858e-02   -   validation loss 1.231e-01
+[2026-11-26 12:53:47] epoch   80   -   training loss: 9.743e-02   -   validation loss 1.216e-01
+[2026-11-26 12:53:57] epoch   90   -   training loss: 9.637e-02   -   validation loss 1.204e-01
+[2026-11-26 12:54:06] epoch  100   -   training loss: 9.534e-02   -   validation loss 1.193e-01
+training (BFGS)...
+[2026-11-26 12:54:52] epoch  110   -   training loss: 8.996e-02   -   validation loss 1.119e-01
+[2026-11-26 12:55:36] epoch  120   -   training loss: 8.653e-02   -   validation loss 1.075e-01
+[2026-11-26 12:56:23] epoch  130   -   training loss: 8.238e-02   -   validation loss 1.077e-01
+[2026-11-26 12:57:12] epoch  140   -   training loss: 7.836e-02   -   validation loss 1.049e-01
+[2026-11-26 12:57:59] epoch  150   -   training loss: 7.593e-02   -   validation loss 1.010e-01
+[2026-11-26 12:58:53] epoch  160   -   training loss: 7.435e-02   -   validation loss 1.005e-01
+[2026-11-26 12:59:39] epoch  170   -   training loss: 7.319e-02   -   validation loss 9.875e-02
+[2026-11-26 13:00:23] epoch  180   -   training loss: 7.237e-02   -   validation loss 9.850e-02
+[2026-11-26 13:01:10] epoch  190   -   training loss: 7.162e-02   -   validation loss 9.714e-02
+[2026-11-26 13:02:01] epoch  200   -   training loss: 7.088e-02   -   validation loss 9.749e-02
+Model saved to /home/davide/LDNets/thesis/model/lat5_pca10_season-sin-cos_w32x24_lr0.001_dir0.1_adam100_bfgs100_seed42_meanTrue_peakTrue_maxTrue_tideTrue_percentile99.9/trained_model
+History saved to /home/davide/LDNets/thesis/model/lat5_pca10_season-sin-cos_w32x24_lr0.001_dir0.1_adam100_bfgs100_seed42_meanTrue_peakTrue_maxTrue_tideTrue_percentile99.9/training_history.npz
+Run folder: /home/davide/LDNets/thesis/model/lat5_pca10_season-sin-cos_w32x24_lr0.001_dir0.1_adam100_bfgs100_seed42_meanTrue_peakTrue_maxTrue_tideTrue_percentile99.9

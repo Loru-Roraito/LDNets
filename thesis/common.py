@@ -23,10 +23,11 @@ dt = 24
 dt_base = 24
 num_latent_states = 5
 n_PCA = 10
+enc_width = 24
 dyn_width = 32
 rec_width = 24
-num_epochs_Adam = 1000
-num_epochs_BFGS = 2000
+num_epochs_Adam = 100
+num_epochs_BFGS = 500   
 weight_direction = 0.1
 learning_rate = 1e-3   
 
@@ -49,7 +50,7 @@ SIGNAL_NAMES = [name for name, on, _ in SIGNAL_TABLE if on]
 SIGNAL_RANGES = {name: ranges[PERCENTILE] for name, on, ranges in SIGNAL_TABLE if on}
 
 OUTPUT_TABLE = [     # name, switched on, {PERCENTILE: (min, max)}
-    ("y", True, {99: (0.0, 157), 99.9: (0.0, 225), 100: (0.0, 331)}),
+    ("y", True, {99: (0.0, 157), 99.9: (-608, 697), 100: (0.0, 331)}),
 ]
 OUTPUT_RANGES = {name: ranges[PERCENTILE] for name, on, ranges in OUTPUT_TABLE if on}
 
@@ -86,7 +87,7 @@ normalization = {
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DATA_PATH = REPO_ROOT / 'thesis' / 'data' /'data.npy'
 
-RUN_TAG = ""  # optional tag to distinguish runs with the same settings
+RUN_TAG = "noPCA"  # optional tag to distinguish runs with the same settings
 season = "-".join(p['name'][len("season_"):] for p in problem['input_parameters'] if p['name'].startswith("season_")) or "none"
 RUN_NAME = (f"lat{num_latent_states}_pca{n_PCA}_season-{season}_w{dyn_width}x{rec_width}_lr{learning_rate:g}_dir{weight_direction:g}"
             f"_adam{num_epochs_Adam}_bfgs{num_epochs_BFGS}_seed{SEED}_mean{MEAN}_peak{PEAK}_max{MAX}_tide{TIDE}_percentile{PERCENTILE}" + (f"_{RUN_TAG}" if RUN_TAG else ""))
@@ -180,7 +181,15 @@ class LDNetModel:
         self.dt_base = dt_base
         self.reconstruction_batch_size = reconstruction_batch_size
 
-        input_shape_dyn = (num_latent_states + len(problem['input_parameters']) + len(problem['input_signals']),)
+        input_shape_enc = (len(problem['input_parameters']),)
+        self.NNenc = tf.keras.Sequential([
+            tf.keras.Input(shape=input_shape_enc),
+            tf.keras.layers.Dense(enc_width, activation=tf.nn.tanh),
+            tf.keras.layers.Dense(enc_width, activation=tf.nn.tanh),
+            tf.keras.layers.Dense(num_latent_states)
+        ])
+
+        input_shape_dyn = (num_latent_states + len(problem['input_parameters']) - n_PCA + len(problem['input_signals']),)
         self.NNdyn = tf.keras.Sequential([
             tf.keras.Input(shape=input_shape_dyn),
             tf.keras.layers.Dense(dyn_width, activation=tf.nn.tanh),
@@ -199,19 +208,17 @@ class LDNetModel:
         ])
  
     def summary(self):
+        self.NNenc.summary()
         self.NNdyn.summary()
         self.NNrec.summary()
  
     @property
     def trainable_variables(self):
-        return self.NNdyn.variables + self.NNrec.variables
+        return self.NNenc.variables + self.NNdyn.variables + self.NNrec.variables
  
     def evolve_dynamics(self, dataset):
-        if len(self.problem['input_parameters']) > 0:
-            parameters = dataset['inp_parameters']
-        else:
-            parameters = tf.zeros((dataset['num_samples'], 0), dtype=tf.float64)
-        state = tf.zeros((dataset['num_samples'], self.num_latent_states), dtype=tf.float64)
+        parameters = dataset['inp_parameters'][:, n_PCA:]
+        state = self.NNenc(dataset['inp_parameters'])
         state_history = tf.TensorArray(tf.float64, size=dataset['num_times'])
         state_history = state_history.write(0, state)
         dt_ref = self.normalization['time']['time_constant']
@@ -249,24 +256,6 @@ class LDNetModel:
         alpha = 0.05
         output = (output ** 3 + alpha * output) / (1 + alpha)
         return output
- 
-    def _reconstruct_timestep(self, dataset, state, inp_signals):
-        states_expanded = tf.broadcast_to(
-            tf.expand_dims(tf.expand_dims(state, axis=1), axis=1),
-            [dataset['num_samples'], 1, dataset['num_points'], self.num_latent_states],
-        )
-        inp_signals_expanded = tf.broadcast_to(
-            tf.expand_dims(tf.expand_dims(inp_signals, axis=1), axis=1),
-            [dataset['num_samples'], 1, dataset['num_points'], len(self.problem['input_signals'])],
-        )
-        output = self.NNrec(tf.concat([
-            states_expanded,
-            inp_signals_expanded,
-            dataset['points_full'][:, 0:1, :, :],
-        ], axis=3))
-        alpha = 0.05
-        output = (output ** 3 + alpha * output) / (1 + alpha)
-        return output[:, 0, :, :]
     
     def __call__(self, dataset):
         states = self.evolve_dynamics(dataset)
@@ -278,6 +267,7 @@ class LDNetModel:
         model_dir = Path(model_dir)
         model_dir.mkdir(parents=True, exist_ok=True)
         # Keras 3 native format requires the .keras extension.
+        self.NNenc.save(str(model_dir / 'NNenc.keras'))
         self.NNdyn.save(str(model_dir / 'NNdyn.keras'))
         self.NNrec.save(str(model_dir / 'NNrec.keras'))
  
@@ -301,6 +291,7 @@ class LDNetModel:
             dt_base,
             reconstruction_batch_size,
         )
+        model.NNenc = tf.keras.models.load_model(str(model_dir / 'NNenc.keras'))
         model.NNdyn = tf.keras.models.load_model(str(model_dir / 'NNdyn.keras'))
         model.NNrec = tf.keras.models.load_model(str(model_dir / 'NNrec.keras'))
         return model

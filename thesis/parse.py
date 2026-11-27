@@ -136,8 +136,7 @@ start_days = np.arange(0, N_DAYS - DAYS_N + 1, STRIDE)
 
 coasts = windows(coasts)                       
 profile0 = coasts[:, 0, :].copy()        # PCA transformed by common.load_datasets() in train.py
-output = coasts - coasts[:, :1, :]
-output = np.abs(output)
+output = coasts
 signals = windows(signals)      
 
 real = windows(coast_quality) > 0 
@@ -205,7 +204,7 @@ print(dataset["season"].shape)
 observed = real[valid].copy()
 observed[:, 0] = False
 
-print(f"output percentiles ({100 - PERCENTILE}, {PERCENTILE}):", np.round(np.percentile(np.abs(output[valid][observed]), [100 - PERCENTILE, PERCENTILE]), 1))
+print(f"output percentiles ({100 - PERCENTILE}, {PERCENTILE}):", np.round(np.percentile(output[valid][observed], [100 - PERCENTILE, PERCENTILE]), 1))
 
 np.save("thesis/data/data.npy", dataset)
 print("data converted to npy")
